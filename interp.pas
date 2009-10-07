@@ -1,3 +1,5 @@
+unit Interp;
+
 interface
 
 uses
@@ -8,9 +10,11 @@ type
   private
     FEnv: LV;
 
-    function EvalApplication(Code, Env: LV): LV;
-    function EvalExpr(Code, Env: LV): LV;
+    function EvalApplication(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
+    function EvalExpr(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
+    function EvalCode(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
     function LookupSymbol(Code, Env: LV): LV;       
+    function ExpandArgs(Names, Values: LV): LV;
   public
     function Eval(Code, Env: LV): LV;
     function Apply(Proc, Args: LV): LV;
@@ -23,35 +27,46 @@ implementation
 
 { TLispInterpreter }
 
-function TLispInterpreter.EvalApplication(Code, Env: LV): LV;
+function TLispInterpreter.EvalApplication(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
 var
-  Proc, Args, Cur: LV;
-  Head, Arg: TLispPair;
+  P, A, Cur: LV;
+  Arg, Next: TLispPair;
 begin
-  Proc := Eval(LispCar(Code), Env);
+  P := Eval(LispCar(Code), Env);
+  Write(LispToString(P), #10);
   
   Cur := LispCdr(Code);
   if Cur = LispEmpty then
   begin
-    Args := LispEmpty;
+    A := LispEmpty;
   end
   else 
   begin
     Arg := TLispPair.Create(Eval(LispCar(Cur), Env), LispEmpty);
     Cur := LispCdr(Cur);
+    A := Arg;
     while Cur <> LispEmpty do
     begin
-      Arg.D := TLispPair.Create(Eval(LispCar(Cur), Env), LispEmpty);
-      Arg := Arg.D;
+      Next := TLispPair.Create(Eval(LispCar(Cur), Env), LispEmpty);
+      Arg.D := Next;
+      Arg := Next;
       Cur := LispCdr(Cur);
     end;
-    Args := Arg;
   end;
 
-  Result := Apply(Proc, Args);
+  if Tail then
+  begin
+    Write('Tail call', #10);
+    Proc := P;
+    Args := A;
+  end
+  else
+  begin
+    Result := Apply(P, A);
+  end;
 end;
 
-function TLispInterpreter.EvalExpr(Code, Env: LV): LV;
+function TLispInterpreter.EvalExpr(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
 var
   ID: string;
   Tmp: LV;
@@ -65,14 +80,13 @@ begin
     end
     else if ID = 'if' then
     begin
-      Tmp := LispCdr(LispCdr(Code));
-      if Eval(LispCar(LispCdr(Code)), Env) = LispFalse then
+      if Eval(LispRef(Code, 1), Env) = LispFalse then
       begin
-        Result := Eval(LispCar(LispCdr(Tmp)), Env);
+        Result := EvalCode(LispRef(Code, 3), Env, Tail, Proc, Args);
       end
       else
       begin
-        Result := Eval(LispCar(Tmp), Env);
+        Result := EvalCode(LispRef(Code, 2), Env, Tail, Proc, Args);
       end;
     end
     else if ID = 'lambda' then
@@ -82,18 +96,18 @@ begin
     end
     else if ID = 'set!' then
     begin
-      Tmp := LookupSymbol(LispCar(LispCdr(Code)));
-      TLispPair(Tmp).D := Eval(LispCar(LispCdr(LispCdr(Code))), Env);
+      Tmp := LookupSymbol(LispRef(Code, 1), Env);
+      TLispPair(Tmp).D := Eval(LispRef(Code, 2), Env);
       Result := LispVoid;
     end
     else
     begin
-      Result := EvalApplication(Code, Env);
+      Result := EvalApplication(Code, Env, Tail, Proc, Args);
     end
   end
   else
   begin
-    Result := EvalApplication(Code, Env);
+    Result := EvalApplication(Code, Env, Tail, Proc, Args);
   end;
 end;
 
@@ -102,23 +116,16 @@ var
   Cur, Binding: LV;
   Name, BindName: TLispSymbol;
 begin
-  if not (Code is TLispSymbol) then
-  begin
-    raise ELispError.Create('Invalid identifier', Code);
-  end;
+  LispTypeCheck(Code, TLispSymbol, 'Invalid identifier');
 
   Name := TLispSymbol(Code);
+  Cur := Env;
 
   while Cur <> LispEmpty do
   begin
     Binding := LispCar(Cur);
-
-    if not (LispCar(Binding) is TLispSymbol) then
-    begin
-      raise ELispError.Create('Invalid binding name', Binding.A);
-    end;
-
     BindName := TLispSymbol(LispCar(Binding));
+    LispTypeCheck(BindName, TLispSymbol, 'Invalid binding name');
         
     if Name.Ident = BindName.Ident then
     begin
@@ -132,16 +139,30 @@ begin
   raise ELispError.Create('Unknown variable', Code);
 end;
 
-function TLispInterpreter.Eval(Code, Env: LV): LV;
+function TLispInterpreter.ExpandArgs(Names, Values: LV): LV;
+var
+  Head: LV;
+begin
+  if Names is TLispPair then
+  begin
+    Head := TLispPair.Create(LispCar(Names), LispCar(Values));
+    Result := TLispPair.Create(Head, ExpandArgs(LispCdr(Names), LispCdr(Values)));
+  end
+  else
+  begin
+    Result := TLispPair.Create(TLispPair.Create(Names, Values), LispEmpty);
+  end;
+end;
+
+function TLispInterpreter.EvalCode(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
 begin
   if Env = nil then
   begin
     Env := FEnv;
   end;
-
   if Code is TLispPair then
-  begin
-    Result := EvalExpr(Code, Env);
+  begin  
+    Result := EvalExpr(Code, Env, Tail, Proc, Args);
   end
   else if Code is TLispSymbol then
   begin
@@ -153,40 +174,51 @@ begin
   end;
 end;
 
-function ExpandArgs(Names, Values: LV): LV;
+function TLispInterpreter.Eval(Code, Env: LV): LV;
 var
-  Head: LV;
+  DummyProc, DummyArgs: LV;
 begin
-  if Names is TLispPair then
-  begin
-    Head := TLispPair.Create(LispCar(Names), LispCar(Values));
-    Result := TLispPair.Create(Head, ExpandArgs(LispCdr(Names), LispCdr(Values)));
-  end
-  else
-  begin
-    Result := TLispPair.Create(Names, Values);
-  end;
+  Result := EvalCode(Code, Env, False, DummyProc, DummyArgs);
 end;
+
+var
+  Calls: Integer;
 
 function TLispInterpreter.Apply(Proc, Args: LV): LV;
 var
   Closure: TLispClosure;
-  Env: LV;
+  Cur, Env: LV;
 begin
-  if Proc is TLispPrimitive then
-  begin
-    Result := Proc.Exec(Args);
-  end
-  else if Proc is TLispClosure then
-  begin
-    Closure := TLispClosure(Proc);
-    Env := LispAppend(ExpandArgs(Closure.Args, Args), Closure.Env);
-    Result := Eval(Closure.Code, Env);
-  end
-  else
-  begin
-    raise ELispError.Create('Not a procedure', Proc);
-  end;
+  repeat
+    Write(Calls, #10);
+    Inc(Calls);
+
+    if Proc is TLispPrimitive then
+    begin
+      Result := TLispPrimitive(Proc).Exec(Args);
+    end
+    else if Proc is TLispClosure then
+    begin
+      Closure := TLispClosure(Proc);
+      Env := LispAppend(ExpandArgs(Closure.Args, Args), Closure.Env);
+      Cur := Closure.Code;
+      Result := LispVoid;
+      while Cur <> LispEmpty do
+      begin
+        if LispCdr(Cur) = LispEmpty then
+        begin
+          Proc := nil;
+          Result := EvalCode(LispCar(Cur), Env, True, Proc, Args);       
+        end;
+        Result := Eval(LispCar(Cur), Env);
+        Cur := LispCdr(Cur);
+      end;
+    end
+    else
+    begin
+      raise ELispError.Create('Not a procedure', Proc);
+    end;
+  until Proc = nil;
 end;
 
 constructor TLispInterpreter.Create(AEnv: LV);
