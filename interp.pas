@@ -33,7 +33,6 @@ var
   Arg, Next: TLispPair;
 begin
   P := Eval(LispCar(Code), Env);
-  Write(LispToString(P), #10);
   
   Cur := LispCdr(Code);
   if Cur = LispEmpty then
@@ -56,7 +55,6 @@ begin
 
   if Tail then
   begin
-    Write('Tail call', #10);
     Proc := P;
     Args := A;
   end
@@ -190,9 +188,6 @@ var
   Cur, Env: LV;
 begin
   repeat
-    Write(Calls, #10);
-    Inc(Calls);
-
     if Proc is TLispPrimitive then
     begin
       Result := TLispPrimitive(Proc).Exec(Args);
@@ -209,9 +204,12 @@ begin
         begin
           Proc := nil;
           Result := EvalCode(LispCar(Cur), Env, True, Proc, Args);       
+        end 
+        else
+        begin
+          Result := Eval(LispCar(Cur), Env);
+          Cur := LispCdr(Cur);
         end;
-        Result := Eval(LispCar(Cur), Env);
-        Cur := LispCdr(Cur);
       end;
     end
     else
