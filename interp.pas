@@ -14,7 +14,7 @@ type
     function EvalExpr(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
     function EvalCode(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
     function LookupSymbol(Code, Env: LV): LV;       
-    function ExpandArgs(Names, Values: LV): LV;
+    function ExpandArgs(Proc, Names, Values: LV): LV;
   public
     function Eval(Code, Env: LV): LV;
     function Apply(Proc, Args: LV): LV;
@@ -137,14 +137,24 @@ begin
   raise ELispError.Create('Unknown variable', Code);
 end;
 
-function TLispInterpreter.ExpandArgs(Names, Values: LV): LV;
+function TLispInterpreter.ExpandArgs(Proc, Names, Values: LV): LV;
 var
   Head: LV;
 begin
+  if (Names = LispEmpty) and (Values <> LispEmpty) then
+  begin
+    raise ELispError.Create('Too many arguments', Proc);
+  end;
+
   if Names is TLispPair then
   begin
+    if Values = LispEmpty then
+    begin
+      raise ELispError.Create('Not enough arguments', Proc);
+    end;
+
     Head := TLispPair.Create(LispCar(Names), LispCar(Values));
-    Result := TLispPair.Create(Head, ExpandArgs(LispCdr(Names), LispCdr(Values)));
+    Result := TLispPair.Create(Head, ExpandArgs(Proc, LispCdr(Names), LispCdr(Values)));
   end
   else
   begin
@@ -158,6 +168,7 @@ begin
   begin
     Env := FEnv;
   end;
+
   if Code is TLispPair then
   begin  
     Result := EvalExpr(Code, Env, Tail, Proc, Args);
@@ -191,11 +202,12 @@ begin
     if Proc is TLispPrimitive then
     begin
       Result := TLispPrimitive(Proc).Exec(Args);
+      Proc := nil;
     end
     else if Proc is TLispClosure then
     begin
       Closure := TLispClosure(Proc);
-      Env := LispAppend(ExpandArgs(Closure.Args, Args), Closure.Env);
+      Env := LispAppend(ExpandArgs(Proc, Closure.Args, Args), Closure.Env);
       Cur := Closure.Code;
       Result := LispVoid;
       while Cur <> LispEmpty do
@@ -208,8 +220,8 @@ begin
         else
         begin
           Result := Eval(LispCar(Cur), Env);
-          Cur := LispCdr(Cur);
         end;
+        Cur := LispCdr(Cur);
       end;
     end
     else
