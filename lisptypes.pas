@@ -1,15 +1,20 @@
 interface
 
 uses
-  LispCode;
+  SysUtils;
 
 type
 
-{ Base Type }
+{ Base Types }
 
   LV = class
   public
     function ToString: string; virtual;
+  end;
+
+  ELispError = class(Exception)
+  public
+    constructor Create(Msg: string; What: LV);
   end;
 
 { Data }
@@ -60,6 +65,7 @@ type
   TLispPair = class(LV)
   public
     A, D: LV;
+
     function ToString: string; override;
     constructor Create(AA, AD: LV);    
   end;
@@ -85,14 +91,24 @@ type
   
   TLispClosure = class(TLispProcedure)
   private
-    FCode, FEnv: LV;
+    FCode, FArgs, FEnv: LV;
   public
     property Code: LV read FCode;
+    property Args: LV read FArgs;
     property Env: LV read FEnv;
 
     function ToString: string; override;
-    constructor Create(AName: string; ACode: TLispCode; AEnv: LV);
+    constructor Create(AName: string; AArgs, ACode, AEnv: LV);
   end;
+
+{ List fun }
+
+var
+  LispEmpty: LV;
+
+function LispCar(X: LV): LV;
+function LispCdr(X: LV): LV;
+function LispAppend(L1, L2: LV): LV;
 
 implementation
 
@@ -101,6 +117,20 @@ implementation
 function LV.ToString: string;
 begin
   Result := '';
+end;
+
+{ ELispError }
+
+constructor Create(Msg: string; What: LV);
+begin
+  if What = nil then
+  begin
+    inherited Create(Msg);
+  end
+  else
+  begin
+    inherited Create(Msg + ': ' + What.ToString);
+  end;
 end;
   
 { TLispFixnum }
@@ -147,7 +177,7 @@ var
 begin
   if D is TLispPair then
   begin
-    Rest := SubString(D.ToString, 1, MaxInt);
+    Rest := Copy(D.ToString, 2, MaxInt);
   end
   else
   begin
@@ -163,19 +193,81 @@ begin
   D := AD;
 end;
 
+function LispCar(X: LV): LV;
+begin
+  if not (X is TLispPair) then
+  begin
+    raise ELispError.Create('Not a pair', X);
+  end;
+
+  Result := TLispPair(X).A;
+end;
+
+function LispCdr(X: LV): LV;
+begin
+  if not (X is TLispPair) then
+  begin
+    raise ELispError.Create('Not a pair', X);
+  end;
+
+  Result := TLispPair(X).D;
+end;
+
+function LispAppend(L1, L2: LV): LV;
+begin
+  if L1 = LispEmpty then
+  begin
+    Result := L2;
+  end
+  else
+  begin
+    Result := TLispPair.Create(LispCar(L1), LispAppend(LispCdr(L1), L2));
+  end;
+end;
+
+{ TLispSymbol }
+
+var
+  SymList: array of string;
+
+function TLispSymbol.ToString: string;
+begin
+  Result := SymList[Ident];
+end;
+
+constructor TLispSymbol.Create(AName: string);
+var
+  I, L: Integer;
+begin
+  L := Length(SymList);
+
+  for I := 0 to L - 1 do
+  begin
+    if AName = SymList[I] then
+    begin
+      FIdent := I;
+      exit;
+    end;
+  end;
+
+  SetLength(SymList, L + 1);
+  SymList[L] := AName;
+  FIdent := L;
+end;
+
 { TLispPrimitive }
 
-function ToString: string;
+function TLispPrimitive.ToString: string;
 begin
   Result := '#<primitive ' + FName + '>';
 end;
 
-function Exec(Args: LV): LV;
+function TLispPrimitive.Exec(Args: LV): LV;
 begin
   Result := FImpl(Args);
 end;
 
-constructor Create(AName: string; Impl: TLispPrimitiveProcedure);
+constructor TLispPrimitive.Create(AName: string; Impl: TLispPrimitiveProcedure);
 begin
   FName := AName;
   FImpl := Impl;
@@ -183,16 +275,21 @@ end;
 
 { TLispClosure }
 
-function ToString: string;
+function TLispClosure.ToString: string;
 begin
   Result := '#<closure ' + FName + '>';
 end;
 
-constructor Create(AName: string; ACode, AEnv: LV);
+constructor TLispClosure.Create(AName: string; AArgs, ACode, AEnv: LV);
 begin
   FName := AName;
+  FArgs := AArgs;
   FCode := ACode;
   FEnv := AEnv;
 end;
+
+initialization
+
+  LispEmpty := LV.Create;
 
 end.
