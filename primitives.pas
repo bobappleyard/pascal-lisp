@@ -28,35 +28,7 @@ begin
   A := LispRef(Args, 0);
   B := LispRef(Args, 1);
 
-  if A is TLispSymbol then
-  begin
-    if B is TLispSymbol then
-    begin
-      if TLispSymbol(A).Ident = TLispSymbol(B).Ident then
-      begin
-        Result := LispTrue;
-      end
-      else
-      begin
-        Result := LispFalse;
-      end;
-    end
-    else
-    begin
-      Result := LispFalse;
-    end;
-  end
-  else
-  begin
-    if A = B then
-    begin
-      Result := LispTrue;
-    end
-    else
-    begin
-      Result := LispFalse;
-    end;
-  end;
+  Result := BooleanToLisp(A.Equals(B));
 end;
 
 { Fixnums }

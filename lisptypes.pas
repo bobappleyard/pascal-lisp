@@ -12,6 +12,7 @@ type
   LV = class
   public
     function ToString: string; virtual;
+    function Equals(X: LV): Boolean; virtual;
   end;
 
   TLispType = class of LV;
@@ -33,6 +34,7 @@ type
     property Value: Integer read FValue;
 
     function ToString: string; override;
+    function Equals(X: LV): Boolean; override;
     constructor Create(AValue: Integer);
   end;
 
@@ -43,6 +45,7 @@ type
     property Value: Real read FValue;
 
     function ToString: string; override;
+    function Equals(X: LV): Boolean; override;
     constructor Create(AValue: Real);
   end;
 
@@ -53,6 +56,7 @@ type
     property Value: Char read FValue;
 
     function ToString: string; override;
+    function Equals(X: LV): Boolean; override;
     constructor Create(AValue: Char);    
   end;
   
@@ -73,6 +77,7 @@ type
     property Ident: Integer read FIdent;
 
     function ToString: string; override;
+    function Equals(X: LV): Boolean; override;
     constructor Create(AName: string);
   end;
   
@@ -147,6 +152,7 @@ function LispAppend(L1, L2: LV): LV;
 
 function LispToString(X: LV): string;
 procedure LispTypeCheck(X: LV; Expected: TLispType; Msg: string);
+function BooleanToLisp(X: Boolean): LV;
 
 implementation
 
@@ -186,11 +192,28 @@ begin
   end;
 end;
 
+function BooleanToLisp(X: Boolean): LV;
+begin
+  if X then
+  begin
+    Result := LispTrue;
+  end
+  else
+  begin
+    Result := LispFalse;
+  end;
+end;
+
 { LV }
 
 function LV.ToString: string;
 begin
   Result := '';
+end;
+
+function LV.Equals(X: LV): Boolean;
+begin
+  Result := X = Self;
 end;
 
 { ELispError }
@@ -214,6 +237,11 @@ begin
   Result := IntToStr(Value);
 end;
 
+function TLispFixnum.Equals(X: LV): Boolean;
+begin
+  Result := (X is TLispFixnum) and (TLispFixnum(X).Value = Value);
+end;
+
 constructor TLispFixnum.Create(AValue: Integer);
 begin
   FValue := AValue;
@@ -226,6 +254,11 @@ begin
   Result := FloatToStr(Value);
 end;
 
+function TLispReal.Equals(X: LV): Boolean;
+begin
+  Result := (X is TLispReal) and (TLispReal(X).Value = Value);
+end;
+
 constructor TLispReal.Create(AValue: Real);
 begin
   FValue := AValue;
@@ -236,6 +269,11 @@ end;
 function TLispChar.ToString: string; 
 begin
   Result := Value;
+end;
+
+function TLispChar.Equals(X: LV): Boolean;
+begin
+  Result := (X is TLispChar) and (TLispChar(X).Value = Value);
 end;
 
 constructor TLispChar.Create(AValue: Char);
@@ -263,6 +301,11 @@ var
 function TLispSymbol.ToString: string;
 begin
   Result := SymList[Ident];
+end;
+
+function TLispSymbol.Equals(X: LV): Boolean;
+begin
+  Result := (X is TLispSymbol) and (TLispSymbol(X).Ident = Ident);
 end;
 
 constructor TLispSymbol.Create(AName: string);

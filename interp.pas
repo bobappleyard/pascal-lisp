@@ -19,7 +19,6 @@ type
     //function Expand(Code, Env: LV): LV;
     function Eval(Code, Env: LV): LV;
     function Apply(Proc, Args: LV): LV;
-
     constructor Create(AEnv: LV);
   end;
 
@@ -110,6 +109,27 @@ begin
   end;
 end;
 
+function TLispInterpreter.EvalCode(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
+begin
+  if Env = nil then
+  begin
+    Env := FEnv;
+  end;
+
+  if Code is TLispPair then
+  begin  
+    Result := EvalExpr(Code, Env, Tail, Proc, Args);
+  end
+  else if Code is TLispSymbol then
+  begin
+    Result := LispCdr(LookupSymbol(Code, Env));
+  end
+  else
+  begin
+    Result := Code;
+  end;
+end;
+
 function TLispInterpreter.LookupSymbol(Code, Env: LV): LV;
 var
   Cur, Binding: LV;
@@ -162,27 +182,6 @@ begin
   else
   begin
     Result := TLispPair.Create(TLispPair.Create(Names, Values), LispEmpty);
-  end;
-end;
-
-function TLispInterpreter.EvalCode(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
-begin
-  if Env = nil then
-  begin
-    Env := FEnv;
-  end;
-
-  if Code is TLispPair then
-  begin  
-    Result := EvalExpr(Code, Env, Tail, Proc, Args);
-  end
-  else if Code is TLispSymbol then
-  begin
-    Result := LispCdr(LookupSymbol(Code, Env));
-  end
-  else
-  begin
-    Result := Code;
   end;
 end;
 
