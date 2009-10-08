@@ -27,7 +27,7 @@ The only syntax supported is
 quote
 if
 lambda
-set
+set!
 
 And function application.
 
