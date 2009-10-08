@@ -3,7 +3,7 @@ unit LispInterpreter;
 interface
 
 uses
-  LispTypes, LispSyntax;
+  LispTypes;
 
 type
   TLispInterpreter = class
@@ -17,7 +17,7 @@ type
     function ExpandArgs(Proc, Names, Values: LV): LV;
   public
     { The global environment }
-    procedure RegisterGlobal(Name: string; P: LV);
+    procedure RegisterGlobal(Name: string; X: LV);
 
     { Syntactic Extensions }
     //function Expand(Code, Env: LV): LV;
@@ -37,7 +37,7 @@ type
 implementation
 
 uses
-  LispPrimitives;
+  LispPrimitives, LispSyntax;
 
 { TLispInterpreter }
 
@@ -199,11 +199,23 @@ begin
   end;
 end;
 
-procedure TLispInterpreter.RegisterGlobal(Name: string; P: LV);
+procedure TLispInterpreter.RegisterGlobal(Name: string; X: LV);
 var
   Binding: LV;
+  Prim: TLispPrimitive;
+  Clos: TLispClosure;
 begin
-  Binding := TLispPair.Create(TLispSymbol.Create(Name), P);
+  if X is TLispPrimitive then
+  begin
+    Prim := TLispPrimitive(X);
+    X := TLispPrimitive.Create(Name, Prim.ArgCount, Prim.Variadic, Prim.Impl);
+  end
+  else if X is TLispClosure then
+  begin
+    Clos := TLispClosure(X);
+    X := TLispClosure.Create(Name, Clos.Args, Clos.Code, Clos.Env);
+  end;
+  Binding := TLispPair.Create(TLispSymbol.Create(Name), X);
   FEnv := TLispPair.Create(Binding, FEnv);
 end;
 

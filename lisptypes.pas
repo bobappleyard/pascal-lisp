@@ -13,7 +13,6 @@ type
   public
     function ToString: string; virtual;
     function Equals(X: LV): Boolean; virtual;
-    constructor Create;
   end;
 
   TLispType = class of LV;
@@ -116,6 +115,7 @@ type
   protected
     FName: string;
   public
+    property Name: string read FName;
   end;
   
   TLispPrimitiveProcedure = function(Args: LV): LV;
@@ -126,10 +126,14 @@ type
     FArgCount: Integer;
     FVariadic: Boolean;
   public
+    property Impl: TLispPrimitiveProcedure read FImpl;
+    property ArgCount: Integer read FArgCount;
+    property Variadic: Boolean read FVariadic;
+
     function ToString: string; override;
-    function Exec(Args: LV): LV;
-    constructor Create(Impl: TLispPrimitiveProcedure); overload;
-    constructor Create(AName: string; ACount: Integer; AVar: Boolean; Impl: TLispPrimitiveProcedure); overload;
+    function Exec(Args: LV): LV; virtual;
+    constructor Create(AImpl: TLispPrimitiveProcedure); overload;
+    constructor Create(AName: string; ACount: Integer; AVar: Boolean; AImpl: TLispPrimitiveProcedure); overload;
   end;
   
   TLispClosure = class(TLispProcedure)
@@ -232,11 +236,6 @@ end;
 function LV.Equals(X: LV): Boolean;
 begin
   Result := X = Self;
-end;
-
-constructor LV.Create;
-begin
-
 end;
 
 { ELispError }
@@ -580,34 +579,38 @@ begin
   begin
     if L < FArgCount then
     begin
-      raise ELispError.Create('Wrong number of arguments', Self);
+      raise ELispError.Create('Not enough arguments', Self);
     end;
   end
   else
   begin
-    if L <> FArgCount then
+    if L < FArgCount then
     begin
-      raise ELispError.Create('Wrong number of arguments', Self);      
+      raise ELispError.Create('Not enough arguments', Self);
+    end
+    else if L > FArgCount then
+    begin
+      raise ELispError.Create('Too many arguments', Self);
     end;
   end;
 
   Result := FImpl(Args);
 end;
 
-constructor TLispPrimitive.Create(Impl: TLispPrimitiveProcedure);
+constructor TLispPrimitive.Create(AImpl: TLispPrimitiveProcedure);
 begin
   FName := '';
   FArgCount := 0;
   FVariadic := True;
-  FImpl := Impl;
+  FImpl := AImpl;
 end;
 
-constructor TLispPrimitive.Create(AName: string; ACount: Integer; AVar: Boolean; Impl: TLispPrimitiveProcedure);
+constructor TLispPrimitive.Create(AName: string; ACount: Integer; AVar: Boolean; AImpl: TLispPrimitiveProcedure);
 begin
   FName := AName;
   FArgCount := ACount;
   FVariadic := AVar;
-  FImpl := Impl;
+  FImpl := AImpl;
 end;
 
 { TLispClosure }

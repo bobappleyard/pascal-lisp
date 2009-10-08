@@ -4,6 +4,7 @@ uses
 var
   Lisp: TLispInterpreter;
   Input, Output: LV;
+
 begin
   Lisp := TLispInterpreter.Create(True);
   Input := TLispPort.Create(TIOStream.Create(iosInput));
