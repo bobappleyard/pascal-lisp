@@ -183,6 +183,8 @@ begin
 
     'f': Result := LispFalse;
 
+    'v': Result := LispVoid;
+
     '\': Result := TLispChar.Create(LispReadChar(Port));
 
     else raise ELispError.Create('Unknown use of hash syntax', nil);
@@ -253,21 +255,39 @@ function ReadList(Port: LV): LV;
 var
   Cur, Next: TLispPair;
   C: Char;
+  ExpectingCons: Boolean;
 begin
   Result := LispEmpty;
+  ExpectingCons := False;
   while True do
   begin
     repeat
       C := LispReadChar(Port);
     until not (C in LispWhitespace);
-
     if C = ')' then
     begin
       exit;
     end
     else
+    if C = '.' then
     begin
-      if Result = LispEmpty then
+      if (Result = LispEmpty) or ExpectingCons then
+      begin
+        raise ELispError.Create('Invalid cons', nil);
+      end
+      else
+      begin
+        Cur.D := LispRead(Port);
+        ExpectingCons := True;
+      end;
+    end
+    else
+    begin
+      if ExpectingCons then
+      begin
+        raise ELispError.Create('Invalid cons', nil);        
+      end
+      else if Result = LispEmpty then
       begin
         Next := TLispPair.Create(ReadWithChar(C, Port), LispEmpty);
         Cur := Next;
@@ -285,7 +305,7 @@ end;
 
 function LispRead(Port: LV): LV;
 begin
-  ReadWithChar(LispReadChar(Port), Port);
+  Result := ReadWithChar(LispReadChar(Port), Port);
 end;
 
 function LispReadString(S: string): LV;

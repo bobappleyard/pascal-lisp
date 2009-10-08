@@ -1,30 +1,28 @@
 uses
-  LispTypes, IOStream, LispIO, Interp;
+  LispTypes, IOStream, LispIO, Interp, Primitives;
 
 procedure REPL(LI: TLispInterpreter);
 var
   Port: LV;
-  C: Char;
 begin
   Port := TLispPort.Create(TIOStream.Create(iosInput));
-{  while True do
-  begin
-    C := LispReadChar(Port);
-    Write(C);
-  end;}
   while not LispEOF(Port) do
   begin
-    Write(LispToString(LI.Eval(LispRead(Port), nil)), #10);
+    try
+      Write(LispToString(LI.Eval(LispRead(Port), nil)), #10);
+    except
+      on E: ELispError do
+      begin
+        Write(E.Message, #10);
+      end;
+    end;
   end;
 end;
 
 var
-  Code, Result: LV;
   Lisp: TLispInterpreter;
 begin
-  Lisp := TLispInterpreter.Create(LispEmpty);
+  Lisp := TLispInterpreter.Create(PrimitiveEnvironment);
   REPL(Lisp);
-  
-  //Code := LispReadString('''(1 2 3)');
 end.
 

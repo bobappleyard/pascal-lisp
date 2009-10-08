@@ -112,10 +112,12 @@ type
   TLispPrimitive = class(TLispProcedure)
   private
     FImpl: TLispPrimitiveProcedure;
+    FArgCount: Integer;
+    FVariadic: Boolean;
   public
     function ToString: string; override;
     function Exec(Args: LV): LV;
-    constructor Create(AName: string; Impl: TLispPrimitiveProcedure);
+    constructor Create(AName: string; ACount: Integer; AVar: Boolean; Impl: TLispPrimitiveProcedure);
   end;
   
   TLispClosure = class(TLispProcedure)
@@ -130,13 +132,14 @@ type
     constructor Create(AName: string; AArgs, ACode, AEnv: LV);
   end;
 
-{ List fun }
-
 var
   LispEmpty, LispVoid, LispTrue, LispFalse, LispEOFObject: LV;
 
+{ List functions }
+
 function LispCar(X: LV): LV;
 function LispCdr(X: LV): LV;
+function LispLength(X: LV): Integer;
 function LispRef(X: LV; Index: Integer): LV;
 function LispAppend(L1, L2: LV): LV;
 
@@ -164,6 +167,10 @@ begin
   else if X = LispFalse then
   begin
     Result := '#f';
+  end
+  else if X = LispEOFObject then
+  begin
+    Result := '#eof-object'
   end
   else
   begin
@@ -294,7 +301,7 @@ begin
   end
   else
   begin
-    Rest := ' . ' + D.ToString;
+    Rest := ' . ' + D.ToString + ')';
   end;
 
   Result := '(' + A.ToString + Rest;
@@ -318,6 +325,19 @@ begin
   LispTypeCheck(X, TLispPair, 'Not a pair');
 
   Result := TLispPair(X).D;
+end;
+
+function LispLength(X: LV): Integer;
+var
+  Cur: LV;
+begin
+  Result := 0;
+  Cur := X;
+  while Cur <> LispEmpty do
+  begin
+    Inc(Result);
+    Cur := LispCdr(Cur);
+  end;
 end;
 
 function LispRef(X: LV; Index: Integer): LV;
@@ -365,13 +385,33 @@ begin
 end;
 
 function TLispPrimitive.Exec(Args: LV): LV;
+var
+  L: Integer;
 begin
+  L := LispLength(Args);
+  if FVariadic then
+  begin
+    if L < FArgCount then
+    begin
+      raise ELispError.Create('Wrong number of arguments', Self);
+    end;
+  end
+  else
+  begin
+    if L <> FArgCount then
+    begin
+      raise ELispError.Create('Wrong number of arguments', Self);      
+    end;
+  end;
+
   Result := FImpl(Args);
 end;
 
-constructor TLispPrimitive.Create(AName: string; Impl: TLispPrimitiveProcedure);
+constructor TLispPrimitive.Create(AName: string; ACount: Integer; AVar: Boolean; Impl: TLispPrimitiveProcedure);
 begin
   FName := AName;
+  FArgCount := ACount;
+  FVariadic := AVar;
   FImpl := Impl;
 end;
 

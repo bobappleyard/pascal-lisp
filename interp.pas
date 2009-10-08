@@ -16,6 +16,7 @@ type
     function LookupSymbol(Code, Env: LV): LV;       
     function ExpandArgs(Proc, Names, Values: LV): LV;
   public
+    //function Expand(Code, Env: LV): LV;
     function Eval(Code, Env: LV): LV;
     function Apply(Proc, Args: LV): LV;
 
@@ -114,8 +115,6 @@ var
   Cur, Binding: LV;
   Name, BindName: TLispSymbol;
 begin
-  LispTypeCheck(Code, TLispSymbol, 'Invalid identifier');
-
   Name := TLispSymbol(Code);
   Cur := Env;
 
@@ -146,7 +145,11 @@ begin
     raise ELispError.Create('Too many arguments', Proc);
   end;
 
-  if Names is TLispPair then
+  if Names = LispEmpty then
+  begin
+    Result := LispEmpty;
+  end
+  else if Names is TLispPair then
   begin
     if Values = LispEmpty then
     begin
@@ -189,9 +192,6 @@ var
 begin
   Result := EvalCode(Code, Env, False, DummyProc, DummyArgs);
 end;
-
-var
-  Calls: Integer;
 
 function TLispInterpreter.Apply(Proc, Args: LV): LV;
 var
