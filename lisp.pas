@@ -1,5 +1,5 @@
 uses
-  LispTypes, IOStream, LispInterpreter;
+  LispGC, LispTypes, IOStream, LispInterpreter;
 
 var
   Lisp: TLispInterpreter;

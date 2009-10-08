@@ -13,6 +13,7 @@ type
   public
     function ToString: string; virtual;
     function Equals(X: LV): Boolean; virtual;
+    constructor Create;
   end;
 
   TLispType = class of LV;
@@ -231,6 +232,11 @@ end;
 function LV.Equals(X: LV): Boolean;
 begin
   Result := X = Self;
+end;
+
+constructor LV.Create;
+begin
+
 end;
 
 { ELispError }
