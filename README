@@ -1,0 +1,36 @@
+This is a very very simple Lisp (well, OK, more like Scheme) interpreter,
+written in the Delphi dialect of Pascal. 
+
+TO COMPILE:
+
+If you actually have Delphi, then I suppose you load up lisp.pas and compile
+that beasty.
+
+Otherwise, grab Freepascal (www.freepascal.org) and run
+
+fpc -Mdelphi lisp.pas
+
+Then under *nix run 
+
+./lisp 
+
+Under Windows it would probably involve double clicking whatever came out of
+the compilation.
+
+NOTES:
+
+It does tail-recursion! Woo.
+
+Uh, yeah, not too many primitives. Nor are there any syntactic wonders as yet.
+The only syntax supported is
+
+quote
+if
+lambda
+set
+
+And function application.
+
+Can't make any definitions from within Lisp yet.
+
+So yeah, I'm working on it...
