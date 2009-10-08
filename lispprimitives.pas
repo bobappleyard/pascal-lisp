@@ -1,23 +1,13 @@
-unit Primitives;
+unit LispPrimitives;
 
 interface
 
 uses
-  LispTypes;
+  LispTypes, LispInterpreter;
 
-procedure RegisterPrimitive(Name: string; Count: Integer; Variadic: Boolean; Proc: TLispPrimitiveProcedure; var Env: LV);
-function PrimitiveEnvironment: LV;
+procedure RegisterPrimitives(I: TLispInterpreter);
 
 implementation
-
-procedure RegisterPrimitive(Name: string; Count: Integer; Variadic: Boolean; Proc: TLispPrimitiveProcedure; var Env: LV);
-var
-  Binding, P: LV;
-begin
-  P := TLispPrimitive.Create(Name, Count, Variadic, Proc);
-  Binding := TLispPair.Create(TLispSymbol.Create(Name), P);
-  Env := TLispPair.Create(Binding, Env);
-end;
 
 { General Stuff }
 
@@ -203,34 +193,28 @@ begin
   Result := LispCdr(LispRef(Args, 0));
 end;
 
-function PrimitiveEnvironment: LV;
-var
-  Env: LV;
+procedure RegisterPrimitives(I: TLispInterpreter);
 begin
-  Env := LispEmpty;
-
   { General stuff }
-  RegisterPrimitive('eq?', 2, False, @EqP, Env);
+  I.RegisterGlobal('eq?', TLispPrimitive.Create('eq?', 2, False, @EqP));
 
-  { Fixnums }
-  RegisterPrimitive('fixnum-add', 2, False, @FixnumAdd, Env);
-  RegisterPrimitive('fixnum-subtract', 2, False, @FixnumSubtract, Env);
-  RegisterPrimitive('fixnum-multiply', 2, False, @FixnumMultiply, Env);
-  RegisterPrimitive('fixnum-quotient', 2, False, @FixnumQuotient, Env);
+ { Fixnums }
+  I.RegisterGlobal('fixnum-add', TLispPrimitive.Create('fixnum-add', 2, False, @FixnumAdd));
+  I.RegisterGlobal('fixnum-subtract', TLispPrimitive.Create('fixnum-subtract', 2, False, @FixnumSubtract));
+  I.RegisterGlobal('fixnum-multiply', TLispPrimitive.Create('fixnum-multiply', 2, False, @FixnumMultiply));
+  I.RegisterGlobal('fixnum-quotient', TLispPrimitive.Create('fixnum-quotient', 2, False, @FixnumQuotient));
 
   { Reals }
-  RegisterPrimitive('real-add', 2, False, @RealAdd, Env);
-  RegisterPrimitive('real-subtract', 2, False, @RealSubtract, Env);
-  RegisterPrimitive('real-multiply', 2, False, @RealMultiply, Env);
-  RegisterPrimitive('real-divide', 2, False, @RealDivide, Env);
+  I.RegisterGlobal('real-add', TLispPrimitive.Create('real-add', 2, False, @RealAdd));
+  I.RegisterGlobal('real-subtract', TLispPrimitive.Create('real-subtract', 2, False, @RealSubtract));
+  I.RegisterGlobal('real-multiply', TLispPrimitive.Create('real-multiply', 2, False, @RealMultiply));
+  I.RegisterGlobal('real-divide', TLispPrimitive.Create('real-divide', 2, False, @RealDivide));
 
   { Pairs }
-  RegisterPrimitive('pair?', 1, False, @PairP, Env);
-  RegisterPrimitive('cons', 2, False, @Cons, Env);
-  RegisterPrimitive('car', 1, False, @Car, Env);
-  RegisterPrimitive('cdr', 1, False, @Cdr, Env);
-
-  Result := Env;
+  I.RegisterGlobal('pair?', TLispPrimitive.Create('pair?', 1, False, @PairP));
+  I.RegisterGlobal('cons', TLispPrimitive.Create('cons', 2, False, @Cons));
+  I.RegisterGlobal('car', TLispPrimitive.Create('car', 1, False, @Car));
+  I.RegisterGlobal('cdr', TLispPrimitive.Create('cdr', 1, False, @Cdr));
 end;
 
 

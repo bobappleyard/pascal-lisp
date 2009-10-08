@@ -5,10 +5,15 @@ interface
 uses
   SysUtils, Classes, LispTypes;
 
+{ S-Exprs }
+
 function LispRead(Port: LV): LV;
 function LispReadString(S: string): LV;
-
 procedure LispWrite(X, Port: LV);
+
+{ Syntax-rules }
+
+
 
 implementation
 
@@ -256,7 +261,10 @@ end;
 
 procedure LispWrite(X, Port: LV);
 begin
-
+  if X <> LispVoid then
+  begin
+    LispWriteString(LispToString(X), Port);
+  end;
 end;
 
 

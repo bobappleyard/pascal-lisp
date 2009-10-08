@@ -1,28 +1,14 @@
 uses
-  LispTypes, IOStream, LispSyntax, LispInterpreter, Primitives;
-
-procedure REPL(LI: TLispInterpreter);
-var
-  Port: LV;
-begin
-  Port := TLispPort.Create(TIOStream.Create(iosInput));
-  while not LispEOF(Port) do
-  begin
-    try
-      Write(LispToString(LI.Eval(LispRead(Port), nil)), #10);
-    except
-      on E: ELispError do
-      begin
-        Write(E.Message, #10);
-      end;
-    end;
-  end;
-end;
+  LispTypes, IOStream, LispInterpreter;
 
 var
   Lisp: TLispInterpreter;
+  Input, Output: LV;
 begin
-  Lisp := TLispInterpreter.Create(PrimitiveEnvironment);
-  REPL(Lisp);
+  Lisp := TLispInterpreter.Create(True);
+  Input := TLispPort.Create(TIOStream.Create(iosInput));
+  Output := TLispPort.Create(TIOStream.Create(iosOutput));
+  
+  Lisp.REPL(Input, Output);
 end.
 

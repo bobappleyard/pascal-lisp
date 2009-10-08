@@ -96,12 +96,15 @@ type
     FStream: TStream;
     FState: TLispPortState;
     FCache: Char;
+    procedure SanityCheck;
   public
     property Stream: TStream read FStream;
 
     function PeekChar: Char;
     procedure NextChar;
     function EOF: Boolean;
+    procedure WriteChar(C: Char);
+    procedure Close;
     function ToString: string; override;
     constructor Create(AStream: TStream);
   end;
@@ -124,7 +127,8 @@ type
   public
     function ToString: string; override;
     function Exec(Args: LV): LV;
-    constructor Create(AName: string; ACount: Integer; AVar: Boolean; Impl: TLispPrimitiveProcedure);
+    constructor Create(Impl: TLispPrimitiveProcedure); overload;
+    constructor Create(AName: string; ACount: Integer; AVar: Boolean; Impl: TLispPrimitiveProcedure); overload;
   end;
   
   TLispClosure = class(TLispProcedure)
@@ -156,6 +160,10 @@ function LispReadChar(Port: LV): Char;
 function LispPeekChar(Port: LV): Char;
 procedure LispNextChar(Port: LV);
 function LispEOF(Port: LV): Boolean;
+
+procedure LispWriteChar(C: Char; Port: LV);
+procedure LispWriteString(S: string; Port: LV);
+procedure LispClosePort(Port: LV);
 
 { Misc Routines }
 
@@ -418,8 +426,18 @@ end;
 
 { TLispPort }
 
+procedure TLispPort.SanityCheck;
+begin
+  if FStream = nil then
+  begin
+    raise ELispError.Create('Port closed', Self);
+  end;
+end;
+
 function TLispPort.PeekChar: Char;
 begin
+  SanityCheck;
+
   if FState = lpsStart then
   begin
     NextChar;
@@ -432,6 +450,8 @@ procedure TLispPort.NextChar;
 var
   Count: Integer;
 begin
+  SanityCheck;
+
   if FState = lpsStart then
   begin
     FState := lpsMiddle;
@@ -447,7 +467,33 @@ end;
 
 function TLispPort.EOF: Boolean;
 begin
+  SanityCheck;
+
   Result := FState = lpsEnd;
+end;
+
+procedure TLispPort.WriteChar(C: Char);
+begin
+  SanityCheck;
+
+  FStream.Write(C, 1);
+end;
+
+procedure LispWriteString(S: string; Port: LV);
+var
+  I: Integer;
+begin
+  for I := 1 to Length(S) do
+  begin
+    LispWriteChar(S[I], Port);
+  end;
+end;
+
+procedure TLispPort.Close;
+begin
+  SanityCheck;
+
+  FreeAndNil(FStream);
 end;
 
 function TLispPort.ToString: string; 
@@ -494,6 +540,24 @@ begin
   Result := P.EOF;
 end;
 
+procedure LispWriteChar(C: Char; Port: LV);
+var
+  P: TLispPort;
+begin
+  LispTypeCheck(Port, TLispPort, 'Not a port');
+  P := TLispPort(Port);
+  P.WriteChar(C);
+end;
+
+procedure LispClosePort(Port: LV);
+var
+  P: TLispPort;
+begin
+  LispTypeCheck(Port, TLispPort, 'Not a port');
+  P := TLispPort(Port);
+  P.Close;
+end;
+
 { TLispPrimitive }
 
 function TLispPrimitive.ToString: string;
@@ -522,6 +586,14 @@ begin
   end;
 
   Result := FImpl(Args);
+end;
+
+constructor TLispPrimitive.Create(Impl: TLispPrimitiveProcedure);
+begin
+  FName := '';
+  FArgCount := 0;
+  FVariadic := True;
+  FImpl := Impl;
 end;
 
 constructor TLispPrimitive.Create(AName: string; ACount: Integer; AVar: Boolean; Impl: TLispPrimitiveProcedure);

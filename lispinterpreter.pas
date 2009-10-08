@@ -3,7 +3,7 @@ unit LispInterpreter;
 interface
 
 uses
-  LispTypes;
+  LispTypes, LispSyntax;
 
 type
   TLispInterpreter = class
@@ -16,14 +16,28 @@ type
     function LookupSymbol(Code, Env: LV): LV;       
     function ExpandArgs(Proc, Names, Values: LV): LV;
   public
+    { The global environment }
+    procedure RegisterGlobal(Name: string; P: LV);
+
+    { Syntactic Extensions }
     //function Expand(Code, Env: LV): LV;
-    function Eval(Code, Env: LV): LV;
+
+    { The main job of the interpreter }
+    function Eval(Code: LV; Env: LV = nil): LV;
     function Apply(Proc, Args: LV): LV;
-    constructor Create(AEnv: LV);
+
+    { Some high-level stuff }
+    function EvalString(S: string): LV;
+    procedure REPL(Input, Output: LV);
+
+    constructor Create(WithPrimitives: Boolean);
   end;
 
 
 implementation
+
+uses
+  LispPrimitives;
 
 { TLispInterpreter }
 
@@ -185,6 +199,14 @@ begin
   end;
 end;
 
+procedure TLispInterpreter.RegisterGlobal(Name: string; P: LV);
+var
+  Binding: LV;
+begin
+  Binding := TLispPair.Create(TLispSymbol.Create(Name), P);
+  FEnv := TLispPair.Create(Binding, FEnv);
+end;
+
 function TLispInterpreter.Eval(Code, Env: LV): LV;
 var
   DummyProc, DummyArgs: LV;
@@ -207,13 +229,13 @@ begin
     begin
       Closure := TLispClosure(Proc);
       Env := LispAppend(ExpandArgs(Proc, Closure.Args, Args), Closure.Env);
+      Proc := nil;
       Cur := Closure.Code;
       Result := LispVoid;
       while Cur <> LispEmpty do
       begin
         if LispCdr(Cur) = LispEmpty then
         begin
-          Proc := nil;
           Result := EvalCode(LispCar(Cur), Env, True, Proc, Args);       
         end 
         else
@@ -230,9 +252,41 @@ begin
   until Proc = nil;
 end;
 
-constructor TLispInterpreter.Create(AEnv: LV);
+function TLispInterpreter.EvalString(S: string): LV;
 begin
-  FEnv := AEnv;
+  Result := Eval(LispReadString(S));
+end;
+
+procedure TLispInterpreter.REPL(Input, Output: LV);
+var
+  Result: LV;
+begin
+  while not LispEOF(Input) do
+  begin
+    try
+      Result := Eval(LispRead(Input));
+      if Result <> LispEOFObject then
+      begin
+        LispWrite(Result, Output);
+        LispWriteChar(#10, Output);
+      end;
+    except
+      on E: ELispError do
+      begin
+        LispWriteString(E.Message, Output);
+        LispWriteChar(#10, Output);
+      end;
+    end;
+  end;
+end;
+
+constructor TLispInterpreter.Create(WithPrimitives: Boolean);
+begin
+  FEnv := LispEmpty;
+  if WithPrimitives then
+  begin
+    RegisterPrimitives(Self);
+  end;
 end;
 
 end.
