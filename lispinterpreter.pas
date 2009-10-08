@@ -1,4 +1,4 @@
-unit Interp;
+unit LispInterpreter;
 
 interface
 

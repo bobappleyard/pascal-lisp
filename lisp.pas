@@ -1,5 +1,5 @@
 uses
-  LispTypes, IOStream, LispIO, Interp, Primitives;
+  LispTypes, IOStream, LispSyntax, LispInterpreter, Primitives;
 
 procedure REPL(LI: TLispInterpreter);
 var

@@ -94,12 +94,14 @@ type
   TLispPort = class(LV)
   private
     FStream: TStream;
+    FState: TLispPortState;
+    FCache: Char;
   public
-    State: TLispPortState;
-    Cache: Char;
-
     property Stream: TStream read FStream;
 
+    function PeekChar: Char;
+    procedure NextChar;
+    function EOF: Boolean;
     function ToString: string; override;
     constructor Create(AStream: TStream);
   end;
@@ -147,6 +149,13 @@ function LispCdr(X: LV): LV;
 function LispLength(X: LV): Integer;
 function LispRef(X: LV; Index: Integer): LV;
 function LispAppend(L1, L2: LV): LV;
+
+{ Port Routines }
+
+function LispReadChar(Port: LV): Char;
+function LispPeekChar(Port: LV): Char;
+procedure LispNextChar(Port: LV);
+function LispEOF(Port: LV): Boolean;
 
 { Misc Routines }
 
@@ -409,6 +418,38 @@ end;
 
 { TLispPort }
 
+function TLispPort.PeekChar: Char;
+begin
+  if FState = lpsStart then
+  begin
+    NextChar;
+  end;
+
+  Result := FCache;
+end;
+
+procedure TLispPort.NextChar;
+var
+  Count: Integer;
+begin
+  if FState = lpsStart then
+  begin
+    FState := lpsMiddle;
+  end;
+
+  Count := FStream.Read(FCache, 1);
+
+  if Count = 0 then
+  begin
+    FState := lpsEnd;
+  end;
+end;
+
+function TLispPort.EOF: Boolean;
+begin
+  Result := FState = lpsEnd;
+end;
+
 function TLispPort.ToString: string; 
 begin
   Result := '#<port>';
@@ -417,7 +458,40 @@ end;
 constructor TLispPort.Create(AStream: TStream);
 begin
   FStream := AStream;
-  State := lpsStart;
+  FState := lpsStart;
+end;
+
+function LispReadChar(Port: LV): Char;
+begin
+  Result := LispPeekChar(Port);
+  LispNextChar(Port);
+end;
+
+function LispPeekChar(Port: LV): Char;
+var
+  P: TLispPort;
+begin
+  LispTypeCheck(Port, TLispPort, 'Not a port');
+  P := TLispPort(Port);
+  Result := P.PeekChar;
+end;
+
+procedure LispNextChar(Port: LV);
+var
+  P: TLispPort;
+begin
+  LispTypeCheck(Port, TLispPort, 'Not a port');
+  P := TLispPort(Port);
+  P.NextChar;
+end;
+
+function LispEOF(Port: LV): Boolean;
+var
+  P: TLispPort;
+begin
+  LispTypeCheck(Port, TLispPort, 'Not a port');
+  P := TLispPort(Port);
+  Result := P.EOF;
 end;
 
 { TLispPrimitive }
