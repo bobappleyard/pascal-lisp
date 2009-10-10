@@ -1,6 +1,8 @@
-unit LispGC;
+unit BoehmGC;
 
 interface
+
+function GCInstalled: Boolean;
 
 implementation
 
@@ -107,6 +109,15 @@ const
       GetHeapStatus : @CGetHeapStatus;
       GetFPCHeapStatus: @CGetFPCHeapStatus;
     );
+
+function GCInstalled: Boolean;
+var
+  Manager: TMemoryManager;
+begin
+  GetMemoryManager(Manager);
+  Result := @Manager.GetMem = @CGetMem;
+end;
+
 var
   OldMemoryManager: TMemoryManager;
 

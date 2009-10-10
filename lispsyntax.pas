@@ -1,9 +1,4 @@
-unit LispSyntax;
-
-interface
-
-uses
-  SysUtils, Classes, LispTypes;
+{$ifdef Interface}
 
 { S-Exprs }
 
@@ -11,11 +6,7 @@ function LispRead(Port: LV): LV;
 function LispReadString(S: string): LV;
 procedure LispWrite(X, Port: LV);
 
-{ Syntax-rules }
-
-
-
-implementation
+{$else}
 
 const
   LispWhitespace = [#9, #10, #13, #32];
@@ -91,11 +82,11 @@ begin
 
   if Fixnum then
   begin
-    Result := TLispFixnum.Create(StrToInt(Str));
+    Result := LispNumber(StrToInt(Str));
   end
   else 
   begin
-    Result := TLispReal.Create(StrToFloat(Str));
+    Result := LispNumber(StrToFloat(Str));
   end;
 end;
 
@@ -113,7 +104,7 @@ begin
     C := LispReadChar(Port);
   end;
 
-  Result := TLispString.Create(Str);
+  Result := LispString(Str);
 end;
 
 function ReadHash(Port: LV): LV;
@@ -140,20 +131,14 @@ function ReadWithWrapper(Name: string; Port: LV): LV;
 var
   Rest: LV;
 begin
-  Rest := TLispPair.Create(LispRead(Port), LispEmpty);
-  Result := TLispPair.Create(LispSymbol(Name), Rest);
+  Rest := LispCons(LispRead(Port), LispEmpty);
+  Result := LispCons(LispSymbol(Name), Rest);
 end;
 
 function ReadList(Port: LV): LV; forward;
 
 function ReadWithChar(C: Char; Port: LV): LV;
 begin
-  if LispEOF(Port) then
-  begin
-    Result := LispEOFObject;
-    exit;
-  end;
-
   while C in LispWhitespace do
   begin
     C := LispReadChar(Port);
@@ -233,13 +218,13 @@ begin
       end
       else if Result = LispEmpty then
       begin
-        Next := TLispPair.Create(ReadWithChar(C, Port), LispEmpty);
+        Next := LispCons(ReadWithChar(C, Port), LispEmpty);
         Cur := Next;
         Result := Next;
       end
       else
       begin
-        Next := TLispPair.Create(ReadWithChar(C, Port), LispEmpty);
+        Next := LispCons(ReadWithChar(C, Port), LispEmpty);
         Cur.D := Next;
         Cur := Next;
       end;
@@ -249,12 +234,18 @@ end;
 
 function LispRead(Port: LV): LV;
 begin
+  if LispEOF(Port) then
+  begin
+    Result := LispEOFObject;
+    exit;
+  end;
+
   Result := ReadWithChar(LispReadChar(Port), Port);
 end;
 
 function LispReadString(S: string): LV;
 begin
-  Result := LispRead(TLispPort.Create(TStringStream.Create(S)));
+  Result := LispRead(LispInputString(S));
 end;
 
 { Writing S-Exprs }
@@ -268,6 +259,4 @@ begin
 end;
 
 
-
-end.
-
+{$endif}

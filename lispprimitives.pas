@@ -1,14 +1,3 @@
-unit LispPrimitives;
-
-interface
-
-uses
-  LispTypes, LispInterpreter;
-
-procedure RegisterPrimitives(I: TLispInterpreter);
-
-implementation
-
 function TestType(Args: LV; T: TLispType): LV;
 var
   X: LV;
@@ -46,6 +35,12 @@ begin
   Result := LispSymbol('');
 end;
 
+function BoehmP(Args: LV): LV;
+begin
+  LispParseArgs(Args, []);
+  Result := BooleanToLisp(GCInstalled);
+end;
+
 { Control }
 
 function ProcedureP(Args: LV): LV;
@@ -68,7 +63,9 @@ type
   public
     function Apply(Args: LV): LV;
     function CallWithValues(Args: LV): LV;
-    function AddDefinition(Args: LV): LV;
+    function AddGlobal(Args: LV): LV;
+    function AddSyntax(Args: LV): LV;
+    function CallWithException(Args: LV): LV;
 
     constructor Create(Interpreter: TLispInterpreter);
   end;
@@ -122,7 +119,7 @@ begin
   end;
 end;
 
-function TControlPrimitives.AddDefinition(Args: LV): LV;
+function TControlPrimitives.AddGlobal(Args: LV): LV;
 var
   Name, Value: LV;
 begin
@@ -130,11 +127,40 @@ begin
   Lisp.RegisterGlobal(Name, Value);
   Result := LispVoid;
 end;  
+
+function TControlPrimitives.AddSyntax(Args: LV): LV;
+var
+  Name, Value: LV;
+begin
+  LispParseArgs(Args, [@Name, @Value]);
+  Lisp.RegisterSyntax(Name, Value);
+  Result := LispVoid;
+end;  
   
+function TControlPrimitives.CallWithException(Args: LV): LV;
+var
+  Handler, Call: LV;
+begin
+  LispParseArgs(Args, [@Handler, @Call]);
+  try
+    Result := Lisp.Apply(Call, LispEmpty);
+  except
+    on E: ELispError do
+    begin
+      Result := Lisp.Apply(Handler, TLispPair.Create(TLispString.Create(E.Message), LispEmpty));
+    end;
+    on E: LV do
+    begin
+      Result := Lisp.Apply(Handler, TLispPair.Create(E, LispEmpty));
+    end;
+  end;
+end;
+
 constructor TControlPrimitives.Create(Interpreter: TLispInterpreter);
 begin
   Lisp := Interpreter;
 end;
+
 
 { Fixnums }
 
@@ -306,13 +332,16 @@ begin
   I.RegisterGlobal('eqv?', TLispPrimitive.Create(@EqvP));
   I.RegisterGlobal('number?', TLispPrimitive.Create(@NumberP));
   I.RegisterGlobal('gensym', TLispPrimitive.Create(@Gensym));
+  I.RegisterGlobal('boehm?', TLispPrimitive.Create(@BoehmP));
 
   { Control }
   I.RegisterGlobal('procedure?', TLispPrimitive.Create(@ProcedureP));
   I.RegisterGlobal('apply', TLispObjectPrimitive.Create(Control.Apply));
   I.RegisterGlobal('values', TLispPrimitive.Create(@Values));
   I.RegisterGlobal('call-with-values', TLispObjectPrimitive.Create(Control.CallWithValues));
-  I.RegisterGlobal('add-definition', TLispObjectPrimitive.Create(Control.AddDefinition));
+  I.RegisterGlobal('call-with-exception', TLispObjectPrimitive.Create(Control.CallWithException));
+  I.RegisterGlobal('add-global', TLispObjectPrimitive.Create(Control.AddGlobal));
+  I.RegisterGlobal('add-syntax', TLispObjectPrimitive.Create(Control.AddSyntax));
   
 
   { Fixnums }
@@ -336,18 +365,3 @@ begin
   I.RegisterGlobal('car', TLispPrimitive.Create(@Car));
   I.RegisterGlobal('cdr', TLispPrimitive.Create(@Cdr));
 end;
-
-
-end.
-
-
-
-
-
-
-
-
-
-
-
-

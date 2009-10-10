@@ -1,15 +1,24 @@
+unit Lisp;
+
+interface
+
 uses
-  LispGC, LispTypes, IOStream, LispInterpreter;
+  BoehmGC, SysUtils, Classes;
 
-var
-  Lisp: TLispInterpreter;
-  Input, Output: LV;
+  {$define Interface}
+  {$include lisptypes.pas}
+  {$include lispsyntax.pas}
+  {$include lispinterpreter.pas}
 
-begin
-  Lisp := TLispInterpreter.Create(True);
-  Input := TLispPort.Create(TIOStream.Create(iosInput));
-  Output := TLispPort.Create(TIOStream.Create(iosOutput));
-  
-  Lisp.REPL(Input, Output);
+implementation 
+
+  {$undef Interface}
+  {$include lisptypes.pas}
+  {$include lispsyntax.pas}
+  {$include lispprimitives.pas}
+  {$include lispinterpreter.pas}
+
+initialization
+  InitTypes;
 end.
 

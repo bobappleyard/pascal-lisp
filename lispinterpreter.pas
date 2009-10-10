@@ -1,10 +1,4 @@
-unit LispInterpreter;
-
-interface
-
-uses
-  LispTypes;
-
+{$ifdef Interface}
 type
   TLispInterpreter = class
   private
@@ -19,7 +13,8 @@ type
     { The global environment }
     procedure RegisterGlobal(Name: string; Val: LV); overload;
     procedure RegisterGlobal(Name, Val: LV); overload;
-    procedure RegisterSyntax(Name: string; X: LV);
+    procedure RegisterSyntax(Name: string; X: LV); overload;
+    procedure RegisterSyntax(Name, X: LV); overload;
 
     { Syntactic Extensions }
     function Expand(Code: LV; SEnv: LV): LV;
@@ -27,7 +22,8 @@ type
     { The main job of the interpreter }
     function Eval(Code: LV; Env: LV): LV; overload;
     function Eval(Code: LV): LV; overload;
-    function Apply(Proc, Args: LV): LV;
+    function Apply(Proc, Args: LV): LV; overload;
+    function Apply(Proc: LV; Args: array of LV): LV; overload;
 
     { Some high-level stuff }
     function EvalString(S: string): LV;
@@ -36,11 +32,7 @@ type
     constructor Create(WithPrimitives: Boolean);
   end;
 
-
-implementation
-
-uses
-  LispPrimitives, LispSyntax;
+{$else}
 
 { TLispInterpreter }
 
@@ -96,7 +88,7 @@ var
   X, Tmp: LV;
 begin
   X := LispCar(Code);
-  if QuoteSym.Equals(X) then
+  if X = QuoteSym then
   begin
     Result := LispCar(LispCdr(Code));
   end
@@ -111,12 +103,12 @@ begin
       Result := EvalCode(LispRef(Code, 2), Env, Tail, Proc, Args);
     end;
   end
-  else if LambdaSym.Equals(X) then
+  else if X = LambdaSym then
   begin
     Tmp := LispCdr(Code);
     Result := TLispClosure.Create('', LispCar(Tmp), LispCdr(Tmp), Env);
   end
-  else if SetSym.Equals(X) then
+  else if X = SetSym then
   begin
     Tmp := LookupSymbol(LispRef(Code, 1), Env);
     TLispPair(Tmp).D := Eval(LispRef(Code, 2), Env);
@@ -222,10 +214,15 @@ begin
 end;
   
 procedure TLispInterpreter.RegisterSyntax(Name: string; X: LV);
+begin
+  RegisterSyntax(LispSymbol(Name), X);
+end;
+
+procedure TLispInterpreter.RegisterSyntax(Name, X: LV);
 var
   Binding: LV;
 begin
-  Binding := TLispPair.Create(LispSymbol(Name), X);
+  Binding := TLispPair.Create(Name, X);
   FSEnv := TLispPair.Create(Binding, FSEnv);
 end;
   
@@ -292,6 +289,31 @@ begin
     end;
   until Proc = nil;
 end;
+    
+function TLispInterpreter.Apply(Proc: LV; Args: array of LV): LV; 
+var
+  I, L: Integer;
+  Cur, Next: TLispPair;
+  ArgLst: LV;
+begin
+  L := Length(Args);
+  if L = 0 then
+  begin
+    Result := Apply(Proc, LispEmpty);
+  end
+  else
+  begin
+    Cur := TLispPair.Create(Args[0], LispEmpty);
+    ArgLst := Cur;
+    for I := 1 to L - 1 do
+    begin
+      Next := TLispPair.Create(Args[I], LispEmpty);
+      Cur.D := Next;
+      Cur := Next;
+    end;
+    Result := Apply(Proc, ArgLst);
+  end;
+end;
 
 function TLispInterpreter.EvalString(S: string): LV;
 begin
@@ -324,6 +346,7 @@ end;
 constructor TLispInterpreter.Create(WithPrimitives: Boolean);
 begin
   FEnv := LispEmpty;
+  FSEnv := LispEmpty;
   if WithPrimitives then
   begin
     RegisterPrimitives(Self);
@@ -334,4 +357,4 @@ begin
   SetSym := LispSymbol('set!');
 end;
 
-end.
+{$endif}

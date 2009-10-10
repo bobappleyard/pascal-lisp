@@ -3,16 +3,21 @@ written in the Delphi dialect of Pascal.
 
 TO COMPILE:
 
-If you actually have Delphi, then I suppose you load up lisp.pas and compile
+If you actually have Delphi, then I suppose you load up lispi.pas and compile
 that beasty.
 
-Otherwise, grab Freepascal (www.freepascal.org) and run
+Otherwise, grab Freepascal (http://www.freepascal.org) and run
 
-fpc -Mdelphi lisp.pas
+fpc -Mdelphi lispi.pas
 
 Then under *nix run 
 
-./lisp 
+./lispi
+
+I have rlwrap (http://utopia.knoware.nl/~hlub/uck/rlwrap/) because I'm too lazy
+to interface with readline myself, so I run
+
+rlwrap ./lispi
 
 Under Windows it would probably involve double clicking whatever came out of
 the compilation.
