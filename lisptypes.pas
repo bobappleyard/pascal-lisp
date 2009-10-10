@@ -11,11 +11,13 @@ type
 
   LV = class
   public
-    function ToString: string; virtual;
+    function ToWrite: string; virtual;
+    function ToDisplay: string; virtual;
     function Equals(X: LV): Boolean; virtual;
   end;
 
   TLispType = class of LV;
+  PLV = ^LV;
 
   ELispError = class(Exception)
   public
@@ -33,7 +35,7 @@ type
   public
     property Value: Integer read FValue;
 
-    function ToString: string; override;
+    function ToWrite: string; override;
     function Equals(X: LV): Boolean; override;
     constructor Create(AValue: Integer);
   end;
@@ -44,7 +46,7 @@ type
   public
     property Value: Real read FValue;
 
-    function ToString: string; override;
+    function ToWrite: string; override;
     function Equals(X: LV): Boolean; override;
     constructor Create(AValue: Real);
   end;
@@ -55,8 +57,8 @@ type
   public
     property Value: Char read FValue;
 
-    function ToString: string; override;
-    function Equals(X: LV): Boolean; override;
+    function ToWrite: string; override;
+    function ToDisplay: string; override;
     constructor Create(AValue: Char);    
   end;
   
@@ -66,26 +68,26 @@ type
   public
     property Value: string read FValue;
 
-    function ToString: string; override;
+    function Equals(X: LV): Boolean; override;
+    function ToWrite: string; override;
+    function ToDisplay: string; override;
     constructor Create(AValue: string);
   end;
 
   TLispSymbol = class(LV)
   private
-    FIdent: Integer;
+    FId: Integer;
   public
-    property Ident: Integer read FIdent;
-
-    function ToString: string; override;
-    function Equals(X: LV): Boolean; override;
-    constructor Create(AName: string);
+    function ToWrite: string; override;
+    constructor Create(Id: Integer);
   end;
   
   TLispPair = class(LV)
   public
     A, D: LV;
 
-    function ToString: string; override;
+    function ToWrite: string; override;
+    function ToDisplay: string; override;
     constructor Create(AA, AD: LV);    
   end;
 
@@ -105,7 +107,7 @@ type
     function EOF: Boolean;
     procedure WriteChar(C: Char);
     procedure Close;
-    function ToString: string; override;
+    function ToWrite: string; override;
     constructor Create(AStream: TStream);
   end;
   
@@ -115,25 +117,32 @@ type
   protected
     FName: string;
   public
+    function WithName(AName: string): LV; virtual;
     property Name: string read FName;
   end;
   
-  TLispPrimitiveProcedure = function(Args: LV): LV;
+  TLispPrimitiveFunc = function(Args: LV): LV;
+  TLispPrimitiveMethod = function(Args: LV): LV of object;
   
   TLispPrimitive = class(TLispProcedure)
   private
-    FImpl: TLispPrimitiveProcedure;
-    FArgCount: Integer;
-    FVariadic: Boolean;
+    FImpl: TLispPrimitiveFunc;
   public
-    property Impl: TLispPrimitiveProcedure read FImpl;
-    property ArgCount: Integer read FArgCount;
-    property Variadic: Boolean read FVariadic;
-
-    function ToString: string; override;
+    function ToWrite: string; override;
+    function WithName(AName: string): LV; override;
     function Exec(Args: LV): LV; virtual;
-    constructor Create(AImpl: TLispPrimitiveProcedure); overload;
-    constructor Create(AName: string; ACount: Integer; AVar: Boolean; AImpl: TLispPrimitiveProcedure); overload;
+    constructor Create(AImpl: TLispPrimitiveFunc); overload;
+    constructor Create(AName: string; AImpl: TLispPrimitiveFunc); overload;
+  end;
+
+  TLispObjectPrimitive = class(TLispPrimitive)
+  private
+    FImpl: TLispPrimitiveMethod;
+  public
+    function WithName(AName: string): LV; override;
+    function Exec(Args: LV): LV; override;
+    constructor Create(AImpl: TLispPrimitiveMethod); overload;
+    constructor Create(AName: string; AImpl: TLispPrimitiveMethod); overload;
   end;
   
   TLispClosure = class(TLispProcedure)
@@ -144,13 +153,34 @@ type
     property Args: LV read FArgs;
     property Env: LV read FEnv;
 
-    function ToString: string; override;
+    function ToWrite: string; override;
+    function WithName(AName: string): LV; override;
     constructor Create(AName: string; AArgs, ACode, AEnv: LV);
+  end;
+
+{ Multiple Values }
+
+  TLispMultipleValues = class(LV)
+  private
+    FFirst, FRest: LV;
+  public
+    property First: LV read FFirst;
+    property Rest: LV read FRest;
+
+    function ToWrite: string; override;
+    function ToDisplay: string; override;
+    constructor Create(AFirst, ARest: LV);
   end;
 
 var
   LispEmpty, LispVoid, LispTrue, LispFalse, LispEOFObject: LV;
 
+{ Constructors }
+
+function LispSymbol(Name: string): LV;
+function BooleanToLisp(X: Boolean): LV;
+function LispChar(C: Char): LV;
+  
 { List functions }
 
 function LispCar(X: LV): LV;
@@ -172,13 +202,15 @@ procedure LispClosePort(Port: LV);
 
 { Misc Routines }
 
-function LispToString(X: LV): string;
+
+function LispToWrite(X: LV): string;
+function LispToDisplay(X: LV): string;
 procedure LispTypeCheck(X: LV; Expected: TLispType; Msg: string);
-function BooleanToLisp(X: Boolean): LV;
+procedure LispParseArgs(Src: LV; Args: array of PLV; Variadic: Boolean = False);
 
 implementation
 
-function LispToString(X: LV): string;
+function LispToString(X: LV; Display: Boolean): string;
 begin
   if X = LispEmpty then
   begin
@@ -200,10 +232,24 @@ begin
   begin
     Result := '#eof-object'
   end
+  else if Display then
+  begin
+    Result := X.ToDisplay;
+  end
   else
   begin
-    Result := X.ToString;
+    Result := X.ToWrite;
   end;
+end;
+
+function LispToWrite(X: LV): string;
+begin
+  Result := LispToString(X, False);
+end;
+
+function LispToDisplay(X: LV): string;
+begin
+  Result := LispToString(X, True);
 end;
 
 procedure LispTypeCheck(X: LV; Expected: TLispType; Msg: string);
@@ -226,11 +272,52 @@ begin
   end;
 end;
 
+procedure LispParseArgs(Src: LV; Args: array of PLV; Variadic: Boolean = False);
+var
+  I, C: Integer;
+  Cur: LV;
+begin
+  Cur := Src;
+
+  if Variadic then
+  begin
+    C := Length(Args) - 1;
+  end
+  else
+  begin
+    C := Length(Args);
+  end;
+
+  for I := 0 to C - 1  do
+  begin
+    if Cur = LispEmpty then
+    begin
+      raise ELispError.Create('Not enough arguments', nil);
+    end;
+    Args[I]^ := LispCar(Cur);
+    Cur := LispCdr(Cur);
+  end;
+
+  if Variadic then
+  begin
+    Args[C]^ := Cur;
+  end
+  else if Cur <> LispEmpty then
+  begin
+    raise ELispError.Create('Too many arguments', nil);
+  end;
+end;
+
 { LV }
 
-function LV.ToString: string;
+function LV.ToWrite: string;
 begin
   Result := '';
+end;
+
+function LV.ToDisplay: string;
+begin
+  Result := ToWrite;
 end;
 
 function LV.Equals(X: LV): Boolean;
@@ -248,13 +335,13 @@ begin
   end
   else
   begin
-    inherited Create(Msg + ': ' + LispToString(What));
+    inherited Create(Msg + ': ' + LispToWrite(What));
   end;
 end;
   
 { TLispFixnum }
 
-function TLispFixnum.ToString: string; 
+function TLispFixnum.ToWrite: string; 
 begin
   Result := IntToStr(Value);
 end;
@@ -271,7 +358,7 @@ end;
 
 { TLispReal }
 
-function TLispReal.ToString: string; 
+function TLispReal.ToWrite: string; 
 begin
   Result := FloatToStr(Value);
 end;
@@ -288,14 +375,14 @@ end;
 
 { TLispChar }
 
-function TLispChar.ToString: string; 
+function TLispChar.ToWrite: string; 
 begin
-  Result := Value;
+  Result := '#\' + Value;
 end;
 
-function TLispChar.Equals(X: LV): Boolean;
+function TLispChar.ToDisplay: string; 
 begin
-  Result := (X is TLispChar) and (TLispChar(X).Value = Value);
+  Result := Value;
 end;
 
 constructor TLispChar.Create(AValue: Char);
@@ -303,9 +390,37 @@ begin
   FValue := AValue;
 end;
 
+var 
+  LispChars: array[Char] of LV;
+
+function LispChar(C: Char): LV;
+begin
+  Result := LispChars[C];
+end;
+
+procedure InitChars;
+var
+  I: Char;
+begin
+  for I := #0 to #255 do
+  begin
+    LispChars[I] := TLispChar.Create(I);
+  end;
+end;
+
 { TLispString }
 
-function TLispString.ToString: string; 
+function TLispString.Equals(X: LV): Boolean;
+begin
+  Result := (X is TLispString) and (TLispString(X).Value = Value);
+end;
+  
+function TLispString.ToWrite: string; 
+begin
+  Result := '"' + Value + '"';
+end;
+
+function TLispString.ToDisplay: string; 
 begin
   Result := Value;
 end;
@@ -318,58 +433,86 @@ end;
 { TLispSymbol }
 
 var
-  SymList: array of string;
+  SymList: TStrings;
+  Gensyms: Integer;
 
-function TLispSymbol.ToString: string;
+function TLispSymbol.ToWrite: string;
 begin
-  Result := SymList[Ident];
-end;
-
-function TLispSymbol.Equals(X: LV): Boolean;
-begin
-  Result := (X is TLispSymbol) and (TLispSymbol(X).Ident = Ident);
-end;
-
-constructor TLispSymbol.Create(AName: string);
-var
-  I, L: Integer;
-begin
-  L := Length(SymList);
-
-  for I := 0 to L - 1 do
+  if FId < 0 then
   begin
-    if AName = SymList[I] then
-    begin
-      FIdent := I;
-      exit;
-    end;
+    Result := '#<gensym ' + IntToStr(-FId) + '>';
+  end
+  else
+  begin
+    Result := SymList.Strings[FId];
   end;
+end;
 
-  SetLength(SymList, L + 1);
-  SymList[L] := AName;
-  FIdent := L;
+constructor TLispSymbol.Create(Id: Integer);
+begin
+  FId := Id;
+end;
+
+function LispSymbol(Name: string): LV;
+var
+  Id: Integer;
+begin
+  if Name = '' then
+  begin
+    Inc(Gensyms);
+    Id := -Gensyms;
+    Result := TLispSymbol.Create(Id);
+  end
+  else
+  begin
+    Id := SymList.IndexOf(Name);
+    if Id = -1 then
+    begin
+      Id := SymList.Add(Name);
+      SymList.Objects[Id] := TLispSymbol.Create(Id);
+    end;
+    Result := LV(SymList.Objects[Id]);
+  end;
 end;
 
 { TLispPair }
 
-function TLispPair.ToString: string; 
+function PairToString(P: TLispPair; Display: Boolean): string;
 var
-  Rest: string;
+  Cur: TLispPair;
+  Done: Boolean;
 begin
-  if D is TLispPair then
-  begin
-    Rest := ' ' + Copy(D.ToString, 2, MaxInt);
-  end
-  else if D = LispEmpty then
-  begin
-    Rest := ')';
-  end
-  else
-  begin
-    Rest := ' . ' + D.ToString + ')';
-  end;
+  Cur := P;
+  Done := False;
+  Result := '(';
+  repeat
+    Result := Result + LispToString(Cur.A, Display); 
+    if Cur.D is TLispPair then
+    begin
+      Result := Result + ' ';
+      Cur := TLispPair(Cur.D);
+    end
+    else if Cur.D = LispEmpty then
+    begin
+      Result := Result + ')';
+      Done := True;
+    end
+    else
+    begin
+      Result := Result + ' . ' + LispToString(Cur.D, Display) + ')';
+      Done := True;
+    end;
+  until Done;
+end;
 
-  Result := '(' + A.ToString + Rest;
+function TLispPair.ToWrite: string; 
+begin
+  Result := PairToString(Self, False);
+end;
+
+function TLispPair.ToDisplay: string; 
+begin
+  Result := PairToString(Self, True);
 end;
 
 constructor TLispPair.Create(AA, AD: LV);    
@@ -501,7 +644,7 @@ begin
   FreeAndNil(FStream);
 end;
 
-function TLispPort.ToString: string; 
+function TLispPort.ToWrite: string; 
 begin
   Result := '#<port>';
 end;
@@ -563,59 +706,73 @@ begin
   P.Close;
 end;
 
+{ TLispProcedure }
+
+function TLispProcedure.WithName(AName: string): LV;
+var
+  P: TLispProcedure;
+begin
+  P := TLispProcedure.Create;
+  P.FName := AName;
+  Result := P;
+end;
+
 { TLispPrimitive }
 
-function TLispPrimitive.ToString: string;
+function TLispPrimitive.ToWrite: string;
 begin
   Result := '#<primitive ' + FName + '>';
 end;
 
-function TLispPrimitive.Exec(Args: LV): LV;
-var
-  L: Integer;
+function TLispPrimitive.WithName(AName: string): LV;
 begin
-  L := LispLength(Args);
-  if FVariadic then
-  begin
-    if L < FArgCount then
-    begin
-      raise ELispError.Create('Not enough arguments', Self);
-    end;
-  end
-  else
-  begin
-    if L < FArgCount then
-    begin
-      raise ELispError.Create('Not enough arguments', Self);
-    end
-    else if L > FArgCount then
-    begin
-      raise ELispError.Create('Too many arguments', Self);
-    end;
-  end;
+  Result := TLispPrimitive.Create(AName, FImpl);
+end;
 
+function TLispPrimitive.Exec(Args: LV): LV;
+begin
   Result := FImpl(Args);
 end;
 
-constructor TLispPrimitive.Create(AImpl: TLispPrimitiveProcedure);
+constructor TLispPrimitive.Create(AImpl: TLispPrimitiveFunc);
 begin
   FName := '';
-  FArgCount := 0;
-  FVariadic := True;
   FImpl := AImpl;
 end;
 
-constructor TLispPrimitive.Create(AName: string; ACount: Integer; AVar: Boolean; AImpl: TLispPrimitiveProcedure);
+constructor TLispPrimitive.Create(AName: string; AImpl: TLispPrimitiveFunc);
 begin
   FName := AName;
-  FArgCount := ACount;
-  FVariadic := AVar;
+  FImpl := AImpl;
+end;
+
+{ TLispObjectPrimitive }
+
+function TLispObjectPrimitive.Exec(Args: LV): LV; 
+begin
+  Result := FImpl(Args);
+end;
+
+function TLispObjectPrimitive.WithName(AName: string): LV;
+begin
+  Result := TLispObjectPrimitive.Create(AName, FImpl);
+end;
+
+constructor TLispObjectPrimitive.Create(AImpl: TLispPrimitiveMethod);
+begin
+  FName := '';
+  FImpl := AImpl;
+end;
+
+constructor TLispObjectPrimitive.Create(AName: string; AImpl: TLispPrimitiveMethod);
+begin
+  FName := AName;
   FImpl := AImpl;
 end;
 
 { TLispClosure }
 
-function TLispClosure.ToString: string;
+function TLispClosure.ToWrite: string;
 var
   N: string;
 begin
@@ -628,7 +785,12 @@ begin
     N := FName + ' ';
   end;
 
-  Result := '#<closure ' + N + LispToString(Args) + '>';
+  Result := '#<closure ' + N + LispToWrite(Args) + '>';
+end;
+
+function TLispClosure.WithName(AName: string): LV;
+begin
+  Result := TLispClosure.Create(AName, Args, Code, Env);
 end;
 
 constructor TLispClosure.Create(AName: string; AArgs, ACode, AEnv: LV);
@@ -639,12 +801,52 @@ begin
   FEnv := AEnv;
 end;
 
+{ TLispMultipleValues }
+
+const
+  LineFeed = #10;
+
+function MultivalToString(X: TLispMultipleValues; Display: Boolean): string;
+var
+  Cur: LV;
+begin
+  Result := LispToString(X.First, Display);
+  Cur := X.Rest;
+  while Cur <> LispEmpty do
+  begin
+    Result := Result + LineFeed + LispToString(LispCar(Cur), Display);
+    Cur := LispCdr(Cur);
+  end;
+end;
+
+function TLispMultipleValues.ToWrite: string;
+begin
+  Result := MultivalToString(Self, False);
+end;
+
+function TLispMultipleValues.ToDisplay: string;
+begin
+  Result := MultivalToString(Self, True);
+end;
+
+constructor TLispMultipleValues.Create(AFirst, ARest: LV);
+begin
+  FFirst := AFirst;
+  FRest := ARest;
+end;
+
 initialization
 
+  { Base values }
   LispEmpty := LV.Create;
   LispVoid := LV.Create;
   LispTrue := LV.Create;
   LispFalse := LV.Create;
   LispEOFObject := LV.Create;
+  { Symbols }
+  SymList := TStringList.Create;
+  Gensyms := 0;
+  { Characters }
+  InitChars;
 
 end.

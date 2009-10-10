@@ -55,7 +55,7 @@ begin
     Name := Name + C;
   end;
 
-  Result := TLispSymbol.Create(Name);
+  Result := LispSymbol(Name);
 end;
 
 function ReadNumber(First: string; Port: LV): LV;
@@ -129,7 +129,7 @@ begin
 
     'v': Result := LispVoid;
 
-    '\': Result := TLispChar.Create(LispReadChar(Port));
+    '\': Result := LispChar(LispReadChar(Port));
 
     else raise ELispError.Create('Unknown use of hash syntax', nil);
 
@@ -141,7 +141,7 @@ var
   Rest: LV;
 begin
   Rest := TLispPair.Create(LispRead(Port), LispEmpty);
-  Result := TLispPair.Create(TLispSymbol.Create(Name), Rest);
+  Result := TLispPair.Create(LispSymbol(Name), Rest);
 end;
 
 function ReadList(Port: LV): LV; forward;
@@ -263,7 +263,7 @@ procedure LispWrite(X, Port: LV);
 begin
   if X <> LispVoid then
   begin
-    LispWriteString(LispToString(X), Port);
+    LispWriteString(LispToWrite(X), Port);
   end;
 end;
 

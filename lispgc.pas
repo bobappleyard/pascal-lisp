@@ -51,7 +51,7 @@ end;
 
 function CFreeMem(P: Pointer): PtrInt;
 begin
-  Result := 0;
+  Result := 0; // Pretend to have free it...
 end;
 
 function CFreeMemSize(P: Pointer; Size: PtrInt): PtrInt;
@@ -65,26 +65,17 @@ begin
 end;
 
 function CReAllocMem(var P: Pointer; Size: PtrInt): Pointer;
-var
-  I, C: Integer;
-  Src, Dst: PByteArray;
 begin
   if Size <> 0 then
   begin
     Result := CGetMem(Size);
-    C := Min(Size, CMemSize(P)) - 1;
-    Src := PByteArray(P);
-    Dst := PByteArray(Result);
-    for I := 0 to C do
-    begin
-      Dst[I] := Src[I];
-    end;
-    P := Result;
+    Move(P^, Result^, Min(Size, CMemSize(P)) - 1);
   end
   else
   begin
     Result := nil;
   end;
+  P := Result;
 end;
 
 function CGetHeapStatus:THeapStatus;
