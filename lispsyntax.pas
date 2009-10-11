@@ -5,6 +5,7 @@
 function LispRead(Port: LV): LV;
 function LispReadString(S: string): LV;
 procedure LispWrite(X, Port: LV);
+procedure LispDisplay(X, Port: LV);
 
 {$else}
 
@@ -46,7 +47,6 @@ begin
     Name := Name + C;
   end;
 
-//  Write(LispToWrite(LispString(Name)), #10);
   Result := LispSymbol(Name);
 end;
 
@@ -159,12 +159,6 @@ function ReadList(Port: LV): LV; forward;
 
 function ReadWithChar(C: Char; Port: LV): LV;
 begin
-  if LispEOF(Port) then
-  begin
-    Result := LispEOFObject;
-    exit;
-  end;
-
   while C in LispWhitespace do
   begin
     C := LispReadChar(Port);
@@ -217,8 +211,12 @@ begin
   Result := LispEmpty;
   ExpectingCons := False;
   while True do
-  begin
+  begin   
     repeat
+      if LispEOF(Port) then
+      begin
+        raise ELispError.Create('Unterminated list', nil);
+      end;
       C := LispReadChar(Port);
     until not (C in LispWhitespace);
     if C = ')' then
@@ -283,6 +281,14 @@ begin
   if X <> LispVoid then
   begin
     LispWriteString(LispToWrite(X), Port);
+  end;
+end;
+
+procedure LispDisplay(X, Port: LV);
+begin
+  if X <> LispVoid then
+  begin
+    LispWriteString(LispToDisplay(X), Port);
   end;
 end;
 

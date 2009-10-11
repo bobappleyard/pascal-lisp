@@ -24,4 +24,7 @@
 (define (null? x)
   (eq? x '()))
 
-
+(define (fold p i l)
+  (if (null? l)
+    i
+    (fold p (p (car l) i) (cdr l))))

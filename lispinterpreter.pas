@@ -456,11 +456,13 @@ end;
 
 procedure TLispInterpreter.REPL(Input, Output: LV);
 var
-  Result: LV;
+  Result, Prompt: LV;
 begin
+  Prompt := LispString('> ');
   while not LispEOF(Input) do
   begin
     try
+      LispDisplay(Prompt, Output);
       Result := Eval(LispRead(Input));
       if (Result <> LispEOFObject) and (Result <> LispVoid) then
       begin
