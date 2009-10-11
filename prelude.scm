@@ -21,12 +21,16 @@
 
 (define-macro (define h . b)
   (definition 'define 'add-global h b))
-    
+
+; That's some of the really rough stuff out of the way
+
 (define (null? x)
   (eq? x '()))
 
 (define (zero? x)
-  (eqv? x 0))
+  (if (eqv? x 0)
+    #t
+    (eqv? x 0.0)))
 
 (define (void)
   #v)
@@ -36,6 +40,8 @@
 
 (define (1+ x)
   (fixnum-add x 1))
+
+; Fold and map get better definitions below
 
 (define (fold p i l)
   (if (null? l)
@@ -195,24 +201,24 @@
   (cond 
     [(null? x) 'proper]
     [(pair? x)
-      (let next  ((slow x) 
-                  (fast1 (cdr x)))
+      (let next  ([slow x]
+                  [fast1 (cdr x)])
         (cond
           [(null? fast1) 'proper]
           [(not (pair? fast1)) 'improper]
-          [else (let ((fast2 (cdr fast1)))
+          [else (let ([fast2 (cdr fast1)])
                   (cond
-                    ((or  (null? slow)
+                    [(or  (null? slow)
                           (null? fast2))
-                      'proper)
-                    ((not (and  (pair? slow)
+                      'proper]
+                    [(not (and  (pair? slow)
                                 (pair? fast2)))
-                      'improper)
-                    ((or  (eq? slow fast1)
+                      'improper]
+                    [(or  (eq? slow fast1)
                           (eq? slow fast2))
-                      'circular)
-                    (else (next (cdr slow) 
-                                (cdr fast2)))))]))]
+                      'circular]
+                    [else (next (cdr slow) 
+                                (cdr fast2))]))]))]
     [else #f]))
 
 (define proper-list? #f)
@@ -226,9 +232,15 @@
 
 (define list? proper-list?)
   
-(define (assert-list x)
-  (unless (list? x)
-    (error "not a list" x)))
+(define (assert pred x msg)
+  (unless (pred x)
+    (error msg x)))
+    
+(define (assert-type pred x)
+  (assert pred x "inavlid type"))
+
+(define (assert-list l)
+  (assert-type list? l))
 
 (define (list-tail ls ref)
   (do  ([cur ls (cdr cur)] 
@@ -290,4 +302,92 @@
             '()
             ls)
     (void)))
+  
+(define (list=? a b)
+  (cond
+    [(and (null? a) (null? b)) #t]
+    [(and (pair? a) (pair? b)) 
+      (fold (lambda (a b acc) 
+              (and  acc
+                    (equal? a b)))
+            #t
+            a
+            b)]
+    [else #f]))
+
+; equal? case, case-lambda
+
+(define (equal? a b)
+  ((cond 
+      [(list? a) list=?] 
+      [else eqv?])
+    a b))
+
+(define-macro (case val . cs)
+  (with-gensyms (tmp)
+    `(let ([,tmp ,val])
+      (cond ,@(map  (lambda (c)
+                      (if (eq? 'else (car c))
+                        c
+                        `[(or ,@(map (lambda (v) `(equal? ,tmp ',v)) (car c)))
+                          ,@(cdr c)]))
+                    cs)))))
+
+(define-macro (case-lambda . cs)
+  (with-gensyms (args)
+    `(lambda ,args 
+      (apply  (case (length ,args) 
+                ,@(map  (lambda (c) 
+                          (if (list? (car c))
+                            `[(,(length (car c))) (lambda ,@c)]
+                            `[else (lambda ,@c)]))
+                        cs))
+              ,args))))
+
+; Numbers
+
+(define integer? fixnum?)
+
+(define =
+  (case-lambda 
+    [() #t]
+    [(a) (assert-type number? a) #t]
+    [(a b .rest)
+      (assert-type number? a)
+      (assert-type number? b)
+      (and  (eqv? a b)
+            (apply = b rest))]))
+
+(define quotient fixnum-quotient)
+(define modulo fixnum-modulo)
+
+(define (remainder n d)
+  (-  n
+      (* (quotient n d) d)))
+
+(define (num-op id rec wraps-fn wraps-rl)
+  (case-lambda
+    [() 
+      id]
+    [(a) 
+      (assert-type number? a) 
+      (rec id a)]
+    [(a b)
+      (assert-type number? a)
+      (assert-type number? b)
+      (if (and (fixnum? a) (fixnum? b))
+        (wraps-fn a b)
+        (wraps-rl (fixnum->real a) (fixnum->real b)))]
+    [(a b . rest)
+      (apply rec (rec a b) rest)]))
+
+(define + (num-op 0 (lambda xs (apply + xs)) fixnum-add real-add))
+(define - (num-op 0 (lambda xs (apply - xs)) fixnum-subtract real-subtract))
+(define * (num-op 1 (lambda xs (apply * xs)) fixnum-multiply real-multiply))
+(define / (num-op 1 
+                  (lambda xs (apply / xs)) 
+                  (lambda (a b) (real-divide (fixnum->real a) (fixnum->real b)))
+                  real-divide))
+
+  
   

@@ -176,7 +176,7 @@ var
   A, B: LV;
 begin
   LispParseArgs(Args,[@A, @B]);
-  Result := TLispFixnum.Create(LispToInteger(A) + LispToInteger(B));
+  Result := LispNumber(LispToInteger(A) + LispToInteger(B));
 end;
 
 function FixnumSubtract(Args: LV): LV;
@@ -184,7 +184,7 @@ var
   A, B: TLispFixnum;
 begin
   LispParseArgs(Args, [@A, @B]);
-  Result := TLispFixnum.Create(LispToInteger(A) - LispToInteger(B));
+  Result := LispNumber(LispToInteger(A) - LispToInteger(B));
 end;
 
 function FixnumMultiply(Args: LV): LV;
@@ -192,7 +192,7 @@ var
   A, B: TLispFixnum;
 begin
   LispParseArgs(Args, [@A, @B]);
-  Result := TLispFixnum.Create(LispToInteger(A) * LispToInteger(B));
+  Result := LispNumber(LispToInteger(A) * LispToInteger(B));
 end;
 
 function FixnumQuotient(Args: LV): LV;
@@ -200,7 +200,15 @@ var
   A, B: TLispFixnum;
 begin
   LispParseArgs(Args, [@A, @B]);
-  Result := TLispFixnum.Create(LispToInteger(A) div LispToInteger(B));
+  Result := LispNumber(LispToInteger(A) div LispToInteger(B));
+end;
+
+function FixnumModulo(Args: LV): LV;
+var
+  A, B: TLispFixnum;
+begin
+  LispParseArgs(Args, [@A, @B]);
+  Result := LispNumber(LispToInteger(A) mod LispToInteger(B));
 end;
 
 function FixnumToReal(Args: LV): LV;
@@ -339,6 +347,7 @@ begin
   I.RegisterGlobal('fixnum-subtract', LispPrimitive(@FixnumSubtract));
   I.RegisterGlobal('fixnum-multiply', LispPrimitive(@FixnumMultiply));
   I.RegisterGlobal('fixnum-quotient', LispPrimitive(@FixnumQuotient));
+  I.RegisterGlobal('fixnum-modulo', LispPrimitive(@FixnumModulo));
   I.RegisterGlobal('fixnum->real', LispPrimitive(@FixnumToReal));
 
   { Reals }
