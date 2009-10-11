@@ -141,7 +141,7 @@
             bs)
     ,@b))
 
-(define-macro (and .cs)
+(define-macro (and . cs)
   (if (null? cs)
     #t
     (if (null? (cdr cs))
@@ -150,7 +150,7 @@
         (and ,@(cdr cs))
         #f))))
 
-(define-macro (or .cs)
+(define-macro (or . cs)
   (if (null? cs)
     #f
     (with-gensyms (val)
@@ -286,7 +286,9 @@
     (apply  fold
             (lambda args
               (let ([ls (list-head args ls-len)])
-                (apply proc ls)))))
-  (void))
+                (apply proc ls)))
+            '()
+            ls)
+    (void)))
 
 
