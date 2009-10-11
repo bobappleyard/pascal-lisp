@@ -20,5 +20,6 @@ implementation
 
 initialization
   InitTypes;
+  InitInterpreter;
 end.
 

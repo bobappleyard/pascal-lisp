@@ -5,16 +5,19 @@ type
     FEnv, FSEnv, QuoteSym, IfSym, LambdaSym, SetSym: LV;
 
     function EvalApplication(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
+    function ArgListUnique(Lst: LV): Boolean;
     function EvalExpr(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
     function EvalCode(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
     function LookupSymbol(Code, Env: LV): LV;       
     function ExpandArgs(Proc, Names, Values: LV): LV;
+    function ExpandList(Lines: LV; SEnv: LV): LV;
   public
     { The global environment }
     procedure RegisterGlobal(Name: string; Val: LV); overload;
     procedure RegisterGlobal(Name, Val: LV); overload;
     procedure RegisterSyntax(Name: string; X: LV); overload;
     procedure RegisterSyntax(Name, X: LV); overload;
+    function Defintions: string;
 
     { Syntactic Extensions }
     function Expand(Code: LV; SEnv: LV): LV;
@@ -27,10 +30,14 @@ type
 
     { Some high-level stuff }
     function EvalString(S: string): LV;
+    procedure Load(Path: string);
     procedure REPL(Input, Output: LV);
 
-    constructor Create(WithPrimitives: Boolean);
+    constructor Create(FullLoad: Boolean);
   end;
+  
+var
+  LispPreludePath: string;
 
 {$else}
 
@@ -40,7 +47,7 @@ function TLispInterpreter.EvalApplication(Code, Env: LV; Tail: Boolean; var Proc
 
   function ArgVal(Arg: LV): LV;
   begin
-    Result := Eval(Arg, Env);
+    Result := EvalCode(Arg, Env, False, Proc, Args);
     if Result is TLispMultipleValues then
     begin
       Result := TLispMultipleValues(Result).First;
@@ -51,7 +58,7 @@ var
   P, A, Cur: LV;
   Arg, Next: TLispPair;
 begin
-  P := Eval(LispCar(Code), Env);
+  P := EvalCode(LispCar(Code), Env, False, Proc, Args);
   
   Cur := LispCdr(Code);
   if Cur = LispEmpty then
@@ -60,12 +67,12 @@ begin
   end
   else 
   begin
-    Arg := TLispPair.Create(ArgVal(LispCar(Cur)), LispEmpty);
+    Arg := LispCons(ArgVal(LispCar(Cur)), LispEmpty);
     Cur := LispCdr(Cur);
     A := Arg;
     while Cur <> LispEmpty do
     begin
-      Next := TLispPair.Create(ArgVal(LispCar(Cur)), LispEmpty);
+      Next := LispCons(ArgVal(LispCar(Cur)), LispEmpty);
       Arg.D := Next;
       Arg := Next;
       Cur := LispCdr(Cur);
@@ -83,10 +90,59 @@ begin
   end;
 end;
 
+function TLispInterpreter.ArgListUnique(Lst: LV): Boolean;
+var
+  A, AVal, B: LV;
+begin
+  A := Lst;
+  if not (A is TLispPair) then
+  begin
+    Result := True;
+    exit;
+  end;
+  while A <> LispEmpty do
+  begin
+    if not (A is TLispPair) then
+    begin
+      Result := True;
+      exit;
+    end;
+    AVal := LispCar(A);
+    B := LispCdr(A);
+    while B <> LispEmpty do
+    begin
+      if B is TLispPair then
+      begin
+        if AVal = LispCar(B) then
+        begin
+          Result := False;
+          exit;
+        end;
+        B := LispCdr(B);
+      end
+      else
+      begin
+        if AVal = B then
+        begin
+          Result := False;
+          exit;
+        end
+        else
+        begin
+          B := LispEmpty;
+        end;
+      end;
+    end;
+    A := LispCdr(A);
+  end;
+  Result := True;
+end;
+
 function TLispInterpreter.EvalExpr(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
 var
-  X, Tmp: LV;
+  X, Binding, CProc, CArgs, CCode: LV;
 begin
+  { Primitive forms }
   X := LispCar(Code);
   if X = QuoteSym then
   begin
@@ -94,24 +150,30 @@ begin
   end
   else if X = IfSym then
   begin
-    if Eval(LispRef(Code, 1), Env) = LispFalse then
+    if LispIsTrue(EvalCode(LispRef(Code, 1), Env, False, Proc, Args)) then
     begin
-      Result := EvalCode(LispRef(Code, 3), Env, Tail, Proc, Args);
+      Result := EvalCode(LispRef(Code, 2), Env, Tail, Proc, Args);
     end
     else
     begin
-      Result := EvalCode(LispRef(Code, 2), Env, Tail, Proc, Args);
+      Result := EvalCode(LispRef(Code, 3), Env, Tail, Proc, Args);
     end;
   end
   else if X = LambdaSym then
   begin
-    Tmp := LispCdr(Code);
-    Result := TLispClosure.Create('', LispCar(Tmp), LispCdr(Tmp), Env);
+    CProc := LispCdr(Code);
+    CArgs := LispCar(CProc);
+    CCode := LispCdr(CProc);
+    if not ArgListUnique(CArgs) then
+    begin
+      raise ELispError.Create('arguments must be unique', Code);
+    end;   
+    Result := TLispClosure.Create('', CArgs, CCode, Env);
   end
   else if X = SetSym then
   begin
-    Tmp := LookupSymbol(LispRef(Code, 1), Env);
-    TLispPair(Tmp).D := Eval(LispRef(Code, 2), Env);
+    Binding := LookupSymbol(LispRef(Code, 1), Env);
+    TLispPair(Binding).D := EvalCode(LispRef(Code, 2), Env, False, Proc, Args);
     Result := LispVoid;
   end
   else
@@ -140,31 +202,18 @@ begin
 end;
 
 function TLispInterpreter.LookupSymbol(Code, Env: LV): LV;
-var
-  Cur, Binding: LV;
 begin
-  Cur := Env;
+  Result := LispAssoc(Code, Env);
 
-  while Cur <> LispEmpty do
+  if (not LispIsTrue(Result)) and (Env <> FEnv) then
   begin
-    Binding := LispCar(Cur);
-       
-    if Code = (LispCar(Binding)) then
-    begin
-      Result := Binding;
-      exit;
-    end;
-
-    Cur := LispCdr(Cur);
+    Result := LispAssoc(Code, FEnv);
   end;
 
-  if Env <> FEnv then
+  if (not LispIsTrue(Result)) then
   begin
-    Result := LookupSymbol(Code, FEnv);
-    exit;
+    raise ELispError.Create('unknown variable', Code);
   end;
-  
-  raise ELispError.Create('Unknown variable', Code);
 end;
 
 function TLispInterpreter.ExpandArgs(Proc, Names, Values: LV): LV;
@@ -173,7 +222,7 @@ var
 begin
   if (Names = LispEmpty) and (Values <> LispEmpty) then
   begin
-    raise ELispError.Create('Too many arguments', Proc);
+    raise ELispError.Create('too many arguments', Proc);
   end;
 
   if Names = LispEmpty then
@@ -184,15 +233,15 @@ begin
   begin
     if Values = LispEmpty then
     begin
-      raise ELispError.Create('Not enough arguments', Proc);
+      raise ELispError.Create('not enough arguments', Proc);
     end;
 
-    Head := TLispPair.Create(LispCar(Names), LispCar(Values));
-    Result := TLispPair.Create(Head, ExpandArgs(Proc, LispCdr(Names), LispCdr(Values)));
+    Head := LispCons(LispCar(Names), LispCar(Values));
+    Result := LispCons(Head, ExpandArgs(Proc, LispCdr(Names), LispCdr(Values)));
   end
   else
   begin
-    Result := TLispPair.Create(TLispPair.Create(Names, Values), LispEmpty);
+    Result := LispCons(LispCons(Names, Values), LispEmpty);
   end;
 end;
 
@@ -209,8 +258,8 @@ begin
   begin
     Val := TLispProcedure(Val).WithName(LispToWrite(Name));
   end;
-  Binding := TLispPair.Create(Name, Val);
-  FEnv := TLispPair.Create(Binding, FEnv);
+  Binding := LispCons(Name, Val);
+  FEnv := LispCons(Binding, FEnv);
 end;
   
 procedure TLispInterpreter.RegisterSyntax(Name: string; X: LV);
@@ -222,27 +271,121 @@ procedure TLispInterpreter.RegisterSyntax(Name, X: LV);
 var
   Binding: LV;
 begin
-  Binding := TLispPair.Create(Name, X);
-  FSEnv := TLispPair.Create(Binding, FSEnv);
+  Binding := LispCons(Name, X);
+  FSEnv := LispCons(Binding, FSEnv);
+end;
+
+function TLispInterpreter.Defintions: string;
+var
+  Cur: LV;
+begin
+  Result := 'Variables:' + #10;
+  Cur := FEnv;
+  while Cur <> LispEmpty do
+  begin
+    Result := Result + LispToWrite(LispCar(Cur)) + #10;
+    Cur := LispCdr(Cur);
+  end;
+end;
+
+function TLispInterpreter.ExpandList(Lines: LV; SEnv: LV): LV;
+var
+  Cur: LV;
+  This, Next: TLispPair;
+begin
+  if Lines = LispEmpty then
+  begin
+    Result := LispEmpty;
+    exit;
+  end;
+  This := LispList([Expand(LispCar(Lines), SEnv)]);
+  Result := This;
+  Cur := LispCdr(Lines);
+  while Cur <> LispEmpty do
+  begin
+    Next := LispList([Expand(LispCar(Cur), SEnv)]);
+    This.D := Next;
+    This := Next;
+    Cur := LispCdr(Cur);
+  end;
 end;
   
-function TLispInterpreter.Expand(Code: LV; SEnv: LV = nil): LV;
-  
+function TLispInterpreter.Expand(Code, SEnv: LV): LV;
+var
+  X, Cur, Binding: LV;
 begin
-  if SEnv = nil then
+  if Code is TLispPair then
   begin
-    SEnv := FSEnv;
+    X := LispCar(Code);
+    if X = QuoteSym then
+    begin
+      Result := Code;
+    end
+    else if X = IfSym then
+    begin
+      Result := LispList([
+        IfSym, 
+        Expand(LispRef(Code, 1), SEnv), 
+        Expand(LispRef(Code, 2), SEnv), 
+        Expand(LispRef(Code, 3), SEnv)
+      ]);
+    end
+    else if X = LambdaSym then
+    begin
+      try
+        Cur := LispCdr(LispCdr(Code));
+      except
+        on ELispError do
+        begin
+          raise ELispError.Create('invalid lambda expression', Code);
+        end;
+      end;
+      if Cur = LispEmpty then
+      begin
+        raise ELispError.Create('invalid lambda expression', Code);
+      end;
+      Result := LispCons(LambdaSym, LispCons(LispRef(Code, 1), ExpandList(Cur, SEnv)));
+    end
+    else if X = SetSym then
+    begin
+      Result := LispList([
+        SetSym, 
+        Expand(LispRef(Code, 1), SEnv), 
+        Expand(LispRef(Code, 2), SEnv)
+      ]);
+    end
+    else if X is TLispSymbol then
+    begin
+      Binding := LispAssoc(X, SEnv);
+      if not LispIsTrue(Binding) then
+      begin
+        Binding := LispAssoc(X, FSEnv);
+      end;
+      if LispIsTrue(Binding) then
+      begin
+        Result := Expand(Apply(LispCdr(Binding), LispCdr(Code)), SEnv);
+      end 
+      else
+      begin
+        Result := ExpandList(Code, SEnv);      
+      end;
+    end
+    else
+    begin
+      Result := ExpandList(Code, SEnv);
+    end;
+  end
+  else
+  begin
+    Result := Code;
   end;
-  
-  
-  Result := Code;
 end;
 
 function TLispInterpreter.Eval(Code, Env: LV): LV;
 var
   DummyProc, DummyArgs: LV;
 begin
-  Result := EvalCode(Code, Env, False, DummyProc, DummyArgs);
+  Result := EvalCode(Expand(Code, LispEmpty), Env, False, DummyProc, DummyArgs);
 end;
 
 function TLispInterpreter.Eval(Code: LV): LV;
@@ -278,7 +421,7 @@ begin
         end 
         else
         begin
-          Result := Eval(LispCar(Cur), Env);
+          Result := EvalCode(LispCar(Cur), Env, False, Proc, Args);
         end;
         Cur := LispCdr(Cur);
       end;
@@ -291,33 +434,24 @@ begin
 end;
     
 function TLispInterpreter.Apply(Proc: LV; Args: array of LV): LV; 
-var
-  I, L: Integer;
-  Cur, Next: TLispPair;
-  ArgLst: LV;
 begin
-  L := Length(Args);
-  if L = 0 then
-  begin
-    Result := Apply(Proc, LispEmpty);
-  end
-  else
-  begin
-    Cur := TLispPair.Create(Args[0], LispEmpty);
-    ArgLst := Cur;
-    for I := 1 to L - 1 do
-    begin
-      Next := TLispPair.Create(Args[I], LispEmpty);
-      Cur.D := Next;
-      Cur := Next;
-    end;
-    Result := Apply(Proc, ArgLst);
-  end;
+  Result := Apply(Proc, LispList(Args));
 end;
 
 function TLispInterpreter.EvalString(S: string): LV;
 begin
   Result := Eval(LispReadString(S));
+end;
+
+procedure TLispInterpreter.Load(Path: string);
+var
+  F: LV;
+begin
+  F := LispInputFile(Path);
+  while not LispEOF(F) do
+  begin
+    Eval(LispRead(F));
+  end;
 end;
 
 procedure TLispInterpreter.REPL(Input, Output: LV);
@@ -336,6 +470,7 @@ begin
     except
       on E: ELispError do
       begin
+        LispWriteString('error: ', Output);
         LispWriteString(E.Message, Output);
         LispWriteChar(#10, Output);
       end;
@@ -343,18 +478,24 @@ begin
   end;
 end;
 
-constructor TLispInterpreter.Create(WithPrimitives: Boolean);
+constructor TLispInterpreter.Create(FullLoad: Boolean);
 begin
   FEnv := LispEmpty;
   FSEnv := LispEmpty;
-  if WithPrimitives then
-  begin
-    RegisterPrimitives(Self);
-  end;
   QuoteSym := LispSymbol('quote');
   IfSym := LispSymbol('if');
   LambdaSym := LispSymbol('lambda');
   SetSym := LispSymbol('set!');
+  if FullLoad then
+  begin
+    RegisterPrimitives(Self);
+    Load(LispPreludePath);
+  end;
+end;
+
+procedure InitInterpreter;
+begin
+  LispPreludePath := './prelude.scm';
 end;
 
 {$endif}

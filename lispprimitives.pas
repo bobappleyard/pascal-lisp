@@ -1,11 +1,3 @@
-function TestType(Args: LV; T: TLispType): LV;
-var
-  X: LV;
-begin
-  LispParseArgs(Args, [@X]);
-  Result := BooleanToLisp(X is T);
-end;
-
 { General Stuff }
 
 function EqP(Args: LV): LV;
@@ -13,7 +5,7 @@ var
   A, B: LV;
 begin
   LispParseArgs(Args, [@A, @B]);
-  Result := BooleanToLisp(A = B);
+  Result := LispBoolean(A = B);
 end;
 
 function EqvP(Args: LV): LV;
@@ -21,32 +13,22 @@ var
   A, B: LV;
 begin
   LispParseArgs(Args, [@A, @B]);
-  Result := BooleanToLisp(A.Equals(B));
-end;
-
-function NumberP(Args: LV): LV;
-begin
-  Result := TestType(Args, TLispNumber);
+  Result := LispBoolean(A.Equals(B));
 end;
 
 function Gensym(Args: LV): LV;
 begin
   LispParseArgs(Args, []);
-  Result := LispSymbol('');
+  Result := LispGensym();
 end;
 
 function BoehmP(Args: LV): LV;
 begin
   LispParseArgs(Args, []);
-  Result := BooleanToLisp(GCInstalled);
+  Result := LispBoolean(GCInstalled);
 end;
 
 { Control }
-
-function ProcedureP(Args: LV): LV;
-begin
-  Result := TestType(Args, TLispProcedure);
-end;
 
 function Values(Args: LV): LV;
 var
@@ -161,28 +143,22 @@ begin
   Lisp := Interpreter;
 end;
 
+function RaiseError(Args: LV): LV;
+var
+  Msg, Obj: LV;
+begin
+  LispParseArgs(Args, [@Msg, @Obj]);
+  raise ELispError.Create(LispToString(Msg), Obj);
+end;
 
 { Fixnums }
 
-procedure CheckFixnum(X: LV);
-begin
-  LispTypeCheck(X, TLispFixnum, 'Not a fixnum');
-end;
-
-function FixnumP(Args: LV): LV;
-begin
-  Result := TestType(Args, TLispFixnum);
-end;
-
 function FixnumAdd(Args: LV): LV;
 var
-  A, B: TLispFixnum;
+  A, B: LV;
 begin
   LispParseArgs(Args,[@A, @B]);
-  CheckFixnum(A);
-  CheckFixnum(B);
-
-  Result := TLispFixnum.Create(A.Value + B.Value);
+  Result := TLispFixnum.Create(LispToInteger(A) + LispToInteger(B));
 end;
 
 function FixnumSubtract(Args: LV): LV;
@@ -190,10 +166,7 @@ var
   A, B: TLispFixnum;
 begin
   LispParseArgs(Args, [@A, @B]);
-  CheckFixnum(A);
-  CheckFixnum(B);
-
-  Result := TLispFixnum.Create(A.Value - B.Value);
+  Result := TLispFixnum.Create(LispToInteger(A) - LispToInteger(B));
 end;
 
 function FixnumMultiply(Args: LV): LV;
@@ -201,10 +174,7 @@ var
   A, B: TLispFixnum;
 begin
   LispParseArgs(Args, [@A, @B]);
-  CheckFixnum(A);
-  CheckFixnum(B);
-
-  Result := TLispFixnum.Create(A.Value * B.Value);
+  Result := TLispFixnum.Create(LispToInteger(A) * LispToInteger(B));
 end;
 
 function FixnumQuotient(Args: LV): LV;
@@ -212,10 +182,7 @@ var
   A, B: TLispFixnum;
 begin
   LispParseArgs(Args, [@A, @B]);
-  CheckFixnum(A);
-  CheckFixnum(B);
-
-  Result := TLispFixnum.Create(A.Value div B.Value);
+  Result := TLispFixnum.Create(LispToInteger(A) div LispToInteger(B));
 end;
 
 function FixnumToReal(Args: LV): LV;
@@ -223,9 +190,7 @@ var
   X: TLispFixnum;
 begin
   LispParseArgs(Args, [@X]);
-  CheckFixnum(X);
-  Result := TLispReal.Create(X.Value);
-  Result := TLispReal.Create(X.Value);
+  Result := LispNumber(LispToReal(X));
 end;
 
 { Reals }
@@ -233,14 +198,6 @@ end;
 procedure CheckReal(X: LV);
 begin
   LispTypeCheck(X, TLispReal, 'Not a Real');
-end;
-
-function RealP(Args: LV): LV;
-var
-  X: LV;
-begin
-  LispParseArgs(Args, [@X]);  
-  Result := BooleanToLisp(X is TLispReal);
 end;
 
 function RealAdd(Args: LV): LV;
@@ -289,14 +246,6 @@ end;
 
 { Pairs }
 
-function PairP(Args: LV): LV;
-var
-  X: LV;
-begin
-  LispParseArgs(Args, [@X]);  
-  Result := BooleanToLisp(X is TLispPair);
-end;
-
 function Cons(Args: LV): LV;
 var
   A, D: TLispReal;
@@ -328,40 +277,40 @@ begin
   Control := TControlPrimitives.Create(I);
 
   { General stuff }
-  I.RegisterGlobal('eq?', TLispPrimitive.Create(@EqP));
-  I.RegisterGlobal('eqv?', TLispPrimitive.Create(@EqvP));
-  I.RegisterGlobal('number?', TLispPrimitive.Create(@NumberP));
-  I.RegisterGlobal('gensym', TLispPrimitive.Create(@Gensym));
-  I.RegisterGlobal('boehm?', TLispPrimitive.Create(@BoehmP));
+  I.RegisterGlobal('eq?', LispPrimitive(@EqP));
+  I.RegisterGlobal('eqv?', LispPrimitive(@EqvP));
+  I.RegisterGlobal('number?', LispTypePredicate(TLispNumber));
+  I.RegisterGlobal('gensym', LispPrimitive(@Gensym));
+  I.RegisterGlobal('boehm?', LispPrimitive(@BoehmP));
 
   { Control }
-  I.RegisterGlobal('procedure?', TLispPrimitive.Create(@ProcedureP));
-  I.RegisterGlobal('apply', TLispObjectPrimitive.Create(Control.Apply));
-  I.RegisterGlobal('values', TLispPrimitive.Create(@Values));
-  I.RegisterGlobal('call-with-values', TLispObjectPrimitive.Create(Control.CallWithValues));
-  I.RegisterGlobal('call-with-exception', TLispObjectPrimitive.Create(Control.CallWithException));
-  I.RegisterGlobal('add-global', TLispObjectPrimitive.Create(Control.AddGlobal));
-  I.RegisterGlobal('add-syntax', TLispObjectPrimitive.Create(Control.AddSyntax));
-  
+  I.RegisterGlobal('procedure?', LispTypePredicate(TLispProcedure));
+  I.RegisterGlobal('apply', LispPrimitive(Control.Apply));
+  I.RegisterGlobal('values', LispPrimitive(@Values));
+  I.RegisterGlobal('call-with-values', LispPrimitive(Control.CallWithValues));
+  I.RegisterGlobal('call-with-exception', LispPrimitive(Control.CallWithException));
+  I.RegisterGlobal('add-global', LispPrimitive(Control.AddGlobal));
+  I.RegisterGlobal('add-syntax', LispPrimitive(Control.AddSyntax));
+  I.RegisterGlobal('error', LispPrimitive(@RaiseError));
 
   { Fixnums }
-  I.RegisterGlobal('fixnum?', TLispPrimitive.Create(@FixnumP));
-  I.RegisterGlobal('fixnum-add', TLispPrimitive.Create(@FixnumAdd));
-  I.RegisterGlobal('fixnum-subtract', TLispPrimitive.Create(@FixnumSubtract));
-  I.RegisterGlobal('fixnum-multiply', TLispPrimitive.Create(@FixnumMultiply));
-  I.RegisterGlobal('fixnum-quotient', TLispPrimitive.Create(@FixnumQuotient));
-  I.RegisterGlobal('fixnum->real', TLispPrimitive.Create(@FixnumToReal));
+  I.RegisterGlobal('fixnum?', LispTypePredicate(TLispFixnum));
+  I.RegisterGlobal('fixnum-add', LispPrimitive(@FixnumAdd));
+  I.RegisterGlobal('fixnum-subtract', LispPrimitive(@FixnumSubtract));
+  I.RegisterGlobal('fixnum-multiply', LispPrimitive(@FixnumMultiply));
+  I.RegisterGlobal('fixnum-quotient', LispPrimitive(@FixnumQuotient));
+  I.RegisterGlobal('fixnum->real', LispPrimitive(@FixnumToReal));
 
   { Reals }
-  I.RegisterGlobal('real?', TLispPrimitive.Create(@RealP));
-  I.RegisterGlobal('real-add', TLispPrimitive.Create(@RealAdd));
-  I.RegisterGlobal('real-subtract', TLispPrimitive.Create(@RealSubtract));
-  I.RegisterGlobal('real-multiply', TLispPrimitive.Create(@RealMultiply));
-  I.RegisterGlobal('real-divide', TLispPrimitive.Create(@RealDivide));
+  I.RegisterGlobal('real?', LispTypePredicate(TLispFixnum));
+  I.RegisterGlobal('real-add', LispPrimitive(@RealAdd));
+  I.RegisterGlobal('real-subtract', LispPrimitive(@RealSubtract));
+  I.RegisterGlobal('real-multiply', LispPrimitive(@RealMultiply));
+  I.RegisterGlobal('real-divide', LispPrimitive(@RealDivide));
 
   { Pairs }
-  I.RegisterGlobal('pair?', TLispPrimitive.Create(@PairP));
-  I.RegisterGlobal('cons', TLispPrimitive.Create(@Cons));
-  I.RegisterGlobal('car', TLispPrimitive.Create(@Car));
-  I.RegisterGlobal('cdr', TLispPrimitive.Create(@Cdr));
+  I.RegisterGlobal('pair?', LispTypePredicate(TLispPair));
+  I.RegisterGlobal('cons', LispPrimitive(@Cons));
+  I.RegisterGlobal('car', LispPrimitive(@Car));
+  I.RegisterGlobal('cdr', LispPrimitive(@Cdr));
 end;

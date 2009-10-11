@@ -46,6 +46,7 @@ begin
     Name := Name + C;
   end;
 
+//  Write(LispToWrite(LispString(Name)), #10);
   Result := LispSymbol(Name);
 end;
 
@@ -127,6 +128,25 @@ begin
   end;
 end;
 
+function ReadComment(Port: LV): LV;
+var
+  C: Char;
+begin
+  C := LispPeekChar(Port);
+  while not (C = #10) or LispEOF(Port) do
+  begin
+    C := LispReadChar(Port);
+
+    if LispEOF(Port) then
+    begin
+      Result := LispEOFObject;
+      exit;
+    end;
+  end;
+
+  Result := LispRead(Port);
+end;
+
 function ReadWithWrapper(Name: string; Port: LV): LV;
 var
   Rest: LV;
@@ -139,6 +159,12 @@ function ReadList(Port: LV): LV; forward;
 
 function ReadWithChar(C: Char; Port: LV): LV;
 begin
+  if LispEOF(Port) then
+  begin
+    Result := LispEOFObject;
+    exit;
+  end;
+
   while C in LispWhitespace do
   begin
     C := LispReadChar(Port);
@@ -165,6 +191,8 @@ begin
     '''': Result := ReadWithWrapper('quote', Port);
 
     '`': Result := ReadWithWrapper('quasiquote', Port);
+    
+    ';': Result := ReadComment(Port);
 
     ',':  if LispPeekChar(Port) = '@' then
           begin

@@ -1,8 +1,12 @@
 {$ifdef Interface}
 
-{ Converters to/from Lisp values }
+{ Booleans }
 
-function BooleanToLisp(X: Boolean): LV;
+type
+  TLispBoolean = class(LV)
+  end;
+
+function LispBoolean(X: Boolean): TLispBoolean;
 function LispIsTrue(X: LV): Boolean;
 
 { Numbers }
@@ -33,10 +37,10 @@ type
     constructor Create(AValue: Real);
   end;
 
-function LispNumber(N: Integer): LV; overload;
-function LispNumber(N: Real): LV; overload;
-function LispAsInteger(X: LV): Integer;
-function LispAsReal(X: LV): Real;
+function LispNumber(N: Integer): TLispNumber; overload;
+function LispNumber(N: Real): TLispNumber; overload;
+function LispToInteger(X: LV): Integer;
+function LispToReal(X: LV): Real;
 
 { Chars and Strings }
 
@@ -65,9 +69,9 @@ type
   end;
 
 function LispChar(C: Char): LV;
-function LispAsChar(X: LV): Char;
+function LispToChar(X: LV): Char;
 function LispString(S: string): LV;
-function LispAsString(X: LV): string;
+function LispToString(X: LV): string;
 
 { Symbols }
 
@@ -75,8 +79,8 @@ type
   TLispSymbol = class(LV)
   private
     FId: Integer;
-    
-    function GetName: string;
+  protected
+    function GetName: string; virtual;
   public
     property Name: string read GetName;
     
@@ -84,7 +88,15 @@ type
     constructor Create(Id: Integer);
   end;
   
-function LispSymbol(Name: string): LV;
+  TLispGensym = class(TLispSymbol)
+  protected
+    function GetName: string; override;
+  public
+    constructor Create;
+  end;
+  
+function LispSymbol(Name: string): TLispSymbol;
+function LispGensym: TLispGensym;
 function LispSymbolName(X: LV): string;
   
 { Pairs, Vectors, Hash tables }
@@ -109,10 +121,12 @@ type
 
 
 function LispCons(A, D: LV): TLispPair;
+function LispList(Items: array of LV): TLispPair;
 function LispCar(X: LV): LV;
 function LispCdr(X: LV): LV;
 function LispLength(X: LV): Integer;
 function LispRef(X: LV; Index: Integer): LV;
+function LispAssoc(Needle, Haystack: LV): LV;
 function LispAppend(L1, L2: LV): LV;
 
 { Ports -- IO }
@@ -164,11 +178,18 @@ procedure LispClosePort(Port: LV);
 { Bottom Values }
 
 var
-  LispEmpty, LispVoid, LispTrue, LispFalse, LispEOFObject: LV;
+  LispEmpty, LispVoid, LispEOFObject: LV;
+  LispTrue, LispFalse: TLispBoolean;
+
+{ String representations }
+
+function LispDataToString(X: LV; Display: Boolean): string;
+function LispToWrite(X: LV): string;
+function LispToDisplay(X: LV): string;
 
 {$else}
 
-function LispToString(X: LV; Display: Boolean): string;
+function LispDataToString(X: LV; Display: Boolean): string;
 begin
   if X = LispEmpty then
   begin
@@ -200,7 +221,19 @@ begin
   end;
 end;
 
-function BooleanToLisp(X: Boolean): LV;
+function LispToWrite(X: LV): string;
+begin
+  Result := LispDataToString(X, False);
+end;
+
+function LispToDisplay(X: LV): string;
+begin
+  Result := LispDataToString(X, True);
+end;
+
+{ Booleans }
+
+function LispBoolean(X: Boolean): TLispBoolean;
 begin
   if X then
   begin
@@ -234,14 +267,14 @@ begin
   FValue := AValue;
 end;
 
-function LispNumber(N: Integer): LV;
+function LispNumber(N: Integer): TLispNumber;
 begin
   Result := TLispFixnum.Create(N);
 end;
 
-function LispAsInteger(X: LV): Integer;
+function LispToInteger(X: LV): Integer;
 begin
-  LispTypeCheck(X, TLispFixnum, 'Not a fixnum');
+  LispTypeCheck(X, TLispFixnum, 'not a fixnum');
   Result := TLispFixnum(X).Value;
 end;
 
@@ -262,20 +295,20 @@ begin
   FValue := AValue;
 end;
 
-function LispNumber(N: Real): LV;
+function LispNumber(N: Real): TLispNumber;
 begin
   Result := TLispReal.Create(N);
 end;
 
-function LispAsReal(X: LV): Real;
+function LispToReal(X: LV): Real;
 begin
   if X is TLispFixnum then
   begin
-    Result := LispAsInteger(X);
+    Result := LispToInteger(X);
   end
   else
   begin
-    LispTypeCheck(X, TLispReal, 'Not a real');
+    LispTypeCheck(X, TLispReal, 'not a real');
     Result := TLispReal(X).Value;
   end;
 end;
@@ -315,9 +348,9 @@ begin
   end;
 end;
 
-function LispAsChar(X: LV): Char;
+function LispToChar(X: LV): Char;
 begin
-  LispTypeCheck(X, TLispChar, 'Not a char');
+  LispTypeCheck(X, TLispChar, 'not a char');
   Result := TLispChar(X).Value;
 end;
 
@@ -348,7 +381,7 @@ begin
   Result := TLispString.Create(S);
 end;
 
-function LispAsString(X: LV): string;
+function LispToString(X: LV): string;
 begin
   if X is TLispChar then
   begin
@@ -356,7 +389,7 @@ begin
   end
   else
   begin
-    LispTypeCheck(X, TLispString, 'Not a string');
+    LispTypeCheck(X, TLispString, 'not a string');
     Result := TLispString(X).Value;
   end;
 end;
@@ -365,18 +398,10 @@ end;
 
 var
   SymList: TStrings;
-  Gensyms: Integer;
   
 function TLispSymbol.GetName: string;
 begin
-  if FId < 0 then
-  begin
-    Result := '#<gensym ' + IntToStr(-FId) + '>';
-  end
-  else
-  begin
-    Result := SymList.Strings[FId];
-  end;
+  Result := SymList.Strings[FId];
 end;
 
 function TLispSymbol.ToWrite: string;
@@ -389,32 +414,43 @@ begin
   FId := Id;
 end;
 
-function LispSymbol(Name: string): LV;
+function LispSymbol(Name: string): TLispSymbol;
 var
   Id: Integer;
 begin
   if Name = '' then
   begin
-    Inc(Gensyms);
-    Id := -Gensyms;
-    Result := TLispSymbol.Create(Id);
-  end
-  else
-  begin
-    Id := SymList.IndexOf(Name);
-    if Id = -1 then
-    begin
-      Id := SymList.Add(Name);
-      SymList.Objects[Id] := TLispSymbol.Create(Id);
-    end;
-    Result := LV(SymList.Objects[Id]);
+    raise ELispError.Create('Symbols must have names', nil);
   end;
+  Id := SymList.IndexOf(Name);
+  if Id = -1 then
+  begin
+    Id := SymList.Add(Name);
+    SymList.Objects[Id] := TLispSymbol.Create(Id);
+  end;
+  Result := TLispSymbol(SymList.Objects[Id]);
 end;
 
 function LispSymbolName(X: LV): string;
 begin
-  LispTypeCheck(X, TLispSymbol, 'Not a symbol');
+  LispTypeCheck(X, TLispSymbol, 'not a symbol');
   Result := TLispSymbol(X).Name;
+end;
+
+{ TLispGensym }
+
+function TLispGensym.GetName: string; 
+begin
+  Result := '#<gensym ' + IntToHex(PtrInt(Self), 2 * SizeOf(TLispGensym)) + '>';
+end;
+
+constructor TLispGensym.Create;
+begin
+end;
+
+function LispGensym: TLispGensym;
+begin
+  Result := TLispGensym.Create;
 end;
 
 { TLispPair }
@@ -428,7 +464,7 @@ begin
   Done := False;
   Result := '(';
   repeat
-    Result := Result + LispToString(Cur.A, Display); 
+    Result := Result + LispDataToString(Cur.A, Display); 
     if Cur.D is TLispPair then
     begin
       Result := Result + ' ';
@@ -441,7 +477,7 @@ begin
     end
     else
     begin
-      Result := Result + ' . ' + LispToString(Cur.D, Display) + ')';
+      Result := Result + ' . ' + LispDataToString(Cur.D, Display) + ')';
       Done := True;
     end;
   until Done;
@@ -468,16 +504,37 @@ begin
   Result := TLispPair.Create(A, D);
 end;
 
+function LispList(Items: array of LV): TLispPair;
+var
+  I, L: Integer;
+  Cur, Next: TLispPair;
+begin
+  L := Length(Items);
+  if L = 0 then
+  begin
+    raise ELispError.Create('LispList: no empty lists!', nil);
+  end;
+  Next := LispCons(Items[0], LispEmpty);
+  Cur := Next;
+  Result := Cur;
+  for I := 1 to Length(Items) - 1 do
+  begin
+    Next := LispCons(Items[I], LispEmpty);
+    Cur.D := Next;
+    Cur := Next;
+  end;
+end;
+
 function LispCar(X: LV): LV;
 begin
-  LispTypeCheck(X, TLispPair, 'Not a pair');
+  LispTypeCheck(X, TLispPair, 'not a pair');
 
   Result := TLispPair(X).A;
 end;
 
 function LispCdr(X: LV): LV;
 begin
-  LispTypeCheck(X, TLispPair, 'Not a pair');
+  LispTypeCheck(X, TLispPair, 'not a pair');
 
   Result := TLispPair(X).D;
 end;
@@ -505,6 +562,25 @@ begin
   begin
     Result := LispRef(LispCdr(X), Index - 1);
   end;
+end;
+
+function LispAssoc(Needle, Haystack: LV): LV;
+var
+  Association: LV;
+begin
+  while Haystack <> LispEmpty do
+  begin
+    Association := LispCar(Haystack);
+       
+    if Needle.Equals((LispCar(Association))) then
+    begin
+      Result := Association;
+      exit;
+    end;
+
+    Haystack := LispCdr(Haystack);
+  end;
+  Result := LispFalse;
 end;
 
 function LispAppend(L1, L2: LV): LV;
@@ -537,11 +613,11 @@ procedure TLispPort.SanityCheck(DesiredType: TLispPortType);
 begin
   if FStream = nil then
   begin
-    raise ELispError.Create('Port closed', Self);
+    raise ELispError.Create('port closed', Self);
   end;
   if (DesiredType <> lptAny) and (FType <> DesiredType) then
   begin
-    raise ELispError.Create('Not an ' + PortTypeToString(DesiredType) + ' port.', Self);
+    raise ELispError.Create('not an ' + PortTypeToString(DesiredType) + ' port.', Self);
   end;
 end;
 
@@ -620,6 +696,7 @@ end;
 function LispPortAsStream(X: LV): TStream;
 begin
   LispTypeCheck(X, TLispPort, 'not a port');
+  Result := TLispPort(X).Stream;
 end;
 
 function LispInputStream(S: TStream): LV;
@@ -660,49 +737,49 @@ begin
   LispNextChar(Port);
 end;
 
-function LispPeekChar(Port: LV): Char;
-var
-  P: TLispPort;
+function GetPort(Port: LV): TLispPort;
 begin
-  LispTypeCheck(Port, TLispPort, 'Not a port');
-  P := TLispPort(Port);
-  Result := P.PeekChar;
+  LispTypeCheck(Port, TLispPort, 'not a port');
+  Result := TLispPort(Port);
+end;
+
+function LispPeekChar(Port: LV): Char;
+begin
+  Result := GetPort(Port).PeekChar;
 end;
 
 procedure LispNextChar(Port: LV);
-var
-  P: TLispPort;
 begin
-  LispTypeCheck(Port, TLispPort, 'Not a port');
-  P := TLispPort(Port);
-  P.NextChar;
+  GetPort(Port).NextChar;
 end;
 
 function LispEOF(Port: LV): Boolean;
-var
-  P: TLispPort;
 begin
-  LispTypeCheck(Port, TLispPort, 'Not a port');
-  P := TLispPort(Port);
-  Result := P.EOF;
+  Result := GetPort(Port).EOF;
 end;
 
 procedure LispWriteChar(C: Char; Port: LV);
-var
-  P: TLispPort;
 begin
-  LispTypeCheck(Port, TLispPort, 'Not a port');
-  P := TLispPort(Port);
-  P.WriteChar(C);
+  GetPort(Port).WriteChar(C);
 end;
 
 procedure LispClosePort(Port: LV);
-var
-  P: TLispPort;
 begin
-  LispTypeCheck(Port, TLispPort, 'Not a port');
-  P := TLispPort(Port);
-  P.Close;
+  GetPort(Port).Close;
+end;
+
+procedure InitTypes;
+begin
+  { Bottom values }
+  LispEmpty := LV.Create;
+  LispVoid := LV.Create;
+  LispEOFObject := LV.Create;
+  LispTrue := TLispBoolean.Create;
+  LispFalse := TLispBoolean.Create;
+  { Symbols }
+  SymList := TStringList.Create;
+  { Characters }
+  InitChars;
 end;
 
 {$endif}
