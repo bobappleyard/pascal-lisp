@@ -45,20 +45,17 @@
 (define (reverse l)
   (fold cons '() l))
 
-(define (fold-right p i l)
-  (fold p i (reverse l)))
-
 (define (map p l)
-  (fold-right (lambda (x acc) (cons (p x) acc))
-              '()
-              l))
+  (reverse (fold  (lambda (x acc) (cons (p x) acc))
+                  '()
+                  l)))
 
 (define (append . ls)
   (if (null? ls)
     ls
     (if (null? (cdr ls))
       (car ls)
-      (fold-right cons (apply append (cdr ls)) (car ls)))))
+      (fold cons (apply append (cdr ls)) (reverse (car ls))))))
 
 (define (compose f g)
   (lambda args (f (apply g args))))
@@ -96,16 +93,16 @@
 
 (define-macro (quasiquote tmplt)
   (if (pair? tmplt)
-    (fold-right (lambda (cell acc)
-                  (if (pair? cell)
-                    (if (eq? (car cell) 'unquote) 
-                      (list 'cons (cadr cell) acc)
-                      (if (eq? (car cell) 'unquote-splicing) 
-                        (list 'append (cadr cell) acc)
-                        (list 'cons (list 'quasiquote cell) acc)))
-                    (list 'cons (list 'quote cell) acc)))
-                ''()
-                tmplt)
+    (fold (lambda (cell acc)
+            (if (pair? cell)
+              (if (eq? (car cell) 'unquote) 
+                (list 'cons (cadr cell) acc)
+                (if (eq? (car cell) 'unquote-splicing) 
+                  (list 'append (cadr cell) acc)
+                  (list 'cons (list 'quasiquote cell) acc)))
+              (list 'cons (list 'quote cell) acc)))
+          ''()
+          (reverse tmplt))
     (list 'quote tmplt)))
 
 ; Woo! Now let's get defining!
@@ -192,7 +189,7 @@
                             (caddr var)))
                         vars)))))))
 
-;; Lists
+; Lists
 
 (define (list-type x)
   (cond 
@@ -262,11 +259,14 @@
         init
         (apply  fold-left 
                 proc 
-                (apply proc (append (map car lst) 
+                (apply proc (append (map car lst)
                                     (list init)))
                 (map cdr lst))))))
 
 (define fold fold-left)
+
+(define (fold-right p i . ls)
+  (apply fold p i (map reverse ls)))
 
 (define (length ls)
   (fold (lambda (x acc) (1+ acc)) 0 ls))
@@ -290,5 +290,4 @@
             '()
             ls)
     (void)))
-
-
+  
