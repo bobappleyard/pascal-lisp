@@ -24,18 +24,9 @@ the compilation.
 
 NOTES:
 
-It does tail-recursion! Woo.
+Iteration is achieved with tail recursion.
 
-Uh, yeah, not too many primitives. Nor are there any syntactic wonders as yet.
-The only syntax supported is
+There exists a means of adding syntax, in the form of define-macro.
 
-quote
-if
-lambda
-set!
+The actual syntactic forms there are pretty thin on the ground, but never mind.
 
-And function application.
-
-Can't make any definitions from within Lisp yet.
-
-So yeah, I'm working on it...

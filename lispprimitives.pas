@@ -43,6 +43,8 @@ type
   private
     Lisp: TLispInterpreter;
   public
+    function Expand(Args: LV): LV;
+    function Eval(Args: LV): LV;
     function Apply(Args: LV): LV;
     function CallWithValues(Args: LV): LV;
     function AddGlobal(Args: LV): LV;
@@ -51,6 +53,22 @@ type
 
     constructor Create(Interpreter: TLispInterpreter);
   end;
+
+function TControlPrimitives.Expand(Args: LV): LV;
+var
+  Expr: LV;
+begin
+  LispParseArgs(Args, [@Expr]);
+  Result := Lisp.Expand(Expr, LispEmpty);
+end;
+
+function TControlPrimitives.Eval(Args: LV): LV;
+var
+  Code, Env: LV;
+begin
+  LispParseArgs(Args, [@Code, @Env]);
+  Result := Lisp.Eval(Code, Env);
+end;
 
 function TControlPrimitives.Apply(Args: LV): LV;
 var
@@ -270,6 +288,26 @@ begin
   Result := LispCdr(P);
 end;
 
+function SetCar(Args: LV): LV;
+var
+  P, X: LV;
+begin
+  LispParseArgs(Args, [@P, @X]);
+  LispTypeCheck(P, TLispPair, 'not a pair');
+  TLispPair(P).A := X;
+  Result := LispVoid;
+end;
+
+function SetCdr(Args: LV): LV;
+var
+  P, X: LV;
+begin
+  LispParseArgs(Args, [@P, @X]);  
+  LispTypeCheck(P, TLispPair, 'not a pair');
+  TLispPair(P).D := X;
+  Result := LispVoid;
+end;
+
 procedure RegisterPrimitives(I: TLispInterpreter);
 var
   Control: TControlPrimitives;
@@ -285,6 +323,8 @@ begin
 
   { Control }
   I.RegisterGlobal('procedure?', LispTypePredicate(TLispProcedure));
+  I.RegisterGlobal('expand', LispPrimitive(Control.Expand));
+  I.RegisterGlobal('eval', LispPrimitive(Control.Eval));
   I.RegisterGlobal('apply', LispPrimitive(Control.Apply));
   I.RegisterGlobal('values', LispPrimitive(@Values));
   I.RegisterGlobal('call-with-values', LispPrimitive(Control.CallWithValues));
@@ -302,7 +342,7 @@ begin
   I.RegisterGlobal('fixnum->real', LispPrimitive(@FixnumToReal));
 
   { Reals }
-  I.RegisterGlobal('real?', LispTypePredicate(TLispFixnum));
+  I.RegisterGlobal('real?', LispTypePredicate(TLispReal));
   I.RegisterGlobal('real-add', LispPrimitive(@RealAdd));
   I.RegisterGlobal('real-subtract', LispPrimitive(@RealSubtract));
   I.RegisterGlobal('real-multiply', LispPrimitive(@RealMultiply));
@@ -313,4 +353,6 @@ begin
   I.RegisterGlobal('cons', LispPrimitive(@Cons));
   I.RegisterGlobal('car', LispPrimitive(@Car));
   I.RegisterGlobal('cdr', LispPrimitive(@Cdr));
+  I.RegisterGlobal('set-car!', LispPrimitive(@SetCar));
+  I.RegisterGlobal('set-cdr!', LispPrimitive(@SetCdr));
 end;

@@ -2,8 +2,10 @@
 type
   TLispInterpreter = class
   private
-    FEnv, FSEnv, QuoteSym, IfSym, LambdaSym, SetSym: LV;
+    FEnv, FSEnv, QuoteSym, IfSym, LambdaSym, SetSym, FPrompt: LV;
 
+    function GetPrompt: string;
+    procedure SetPrompt(P: string);  
     function EvalApplication(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
     function ArgListUnique(Lst: LV): Boolean;
     function EvalExpr(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
@@ -12,6 +14,8 @@ type
     function ExpandArgs(Proc, Names, Values: LV): LV;
     function ExpandList(Lines: LV; SEnv: LV): LV;
   public
+    property Prompt: string read GetPrompt write SetPrompt;
+  
     { The global environment }
     procedure RegisterGlobal(Name: string; Val: LV); overload;
     procedure RegisterGlobal(Name, Val: LV); overload;
@@ -42,6 +46,19 @@ var
 {$else}
 
 { TLispInterpreter }
+
+function TLispInterpreter.GetPrompt: string;
+begin
+  Result := LispToString(FPrompt);
+end;
+
+procedure TLispInterpreter.SetPrompt(P: string);  
+begin
+  if LispToString(FPrompt) <> P then
+  begin
+    FPrompt := LispString(P);
+  end;
+end;
 
 function TLispInterpreter.EvalApplication(Code, Env: LV; Tail: Boolean; var Proc, Args: LV): LV;
 
@@ -258,8 +275,16 @@ begin
   begin
     Val := TLispProcedure(Val).WithName(LispToWrite(Name));
   end;
-  Binding := LispCons(Name, Val);
-  FEnv := LispCons(Binding, FEnv);
+  Binding := LispAssoc(Name, FEnv);
+  if Binding is TLispPair then
+  begin
+    TLispPair(Binding).D := Val;
+  end
+  else
+  begin
+    Binding := LispCons(Name, Val);
+    FEnv := LispCons(Binding, FEnv);
+  end;
 end;
   
 procedure TLispInterpreter.RegisterSyntax(Name: string; X: LV);
@@ -412,7 +437,6 @@ begin
       Env := LispAppend(ExpandArgs(Proc, Closure.Args, Args), Closure.Env);
       Proc := nil;
       Cur := Closure.Code;
-      Result := LispVoid;
       while Cur <> LispEmpty do
       begin
         if LispCdr(Cur) = LispEmpty then
@@ -428,7 +452,7 @@ begin
     end
     else
     begin
-      raise ELispError.Create('Not a procedure', Proc);
+      raise ELispError.Create('not a procedure', Proc);
     end;
   until Proc = nil;
 end;
@@ -456,13 +480,12 @@ end;
 
 procedure TLispInterpreter.REPL(Input, Output: LV);
 var
-  Result, Prompt: LV;
+  Result: LV;
 begin
-  Prompt := LispString('> ');
   while not LispEOF(Input) do
   begin
     try
-      LispDisplay(Prompt, Output);
+      LispDisplay(FPrompt, Output);
       Result := Eval(LispRead(Input));
       if (Result <> LispEOFObject) and (Result <> LispVoid) then
       begin
@@ -493,6 +516,7 @@ begin
     RegisterPrimitives(Self);
     Load(LispPreludePath);
   end;
+  FPrompt := LispString('> ');
 end;
 
 procedure InitInterpreter;

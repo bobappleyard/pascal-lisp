@@ -11,6 +11,7 @@ procedure LispDisplay(X, Port: LV);
 
 const
   LispWhitespace = [#9, #10, #13, #32];
+  OverChars = LispWhitespace + [']', ')'];
 
 { Reading S-Exprs }
 
@@ -23,7 +24,7 @@ begin
   else
   begin
     C := LispPeekChar(Port);
-    if (C = ')') or (C in LispWhitespace) then
+    if C in OverChars then
     begin
       Result := True;
     end
@@ -132,16 +133,20 @@ function ReadComment(Port: LV): LV;
 var
   C: Char;
 begin
+  if LispEOF(Port) then
+  begin
+    Result := LispEOFObject;
+    exit;
+  end;
   C := LispPeekChar(Port);
-  while not (C = #10) or LispEOF(Port) do
+  while not ((C = #10) or LispEOF(Port)) do
   begin
     C := LispReadChar(Port);
-
-    if LispEOF(Port) then
-    begin
-      Result := LispEOFObject;
-      exit;
-    end;
+  end;
+  if LispEOF(Port) then
+  begin
+    Result := LispEOFObject;
+    exit;
   end;
 
   Result := LispRead(Port);
@@ -155,10 +160,16 @@ begin
   Result := LispCons(LispSymbol(Name), Rest);
 end;
 
-function ReadList(Port: LV): LV; forward;
+function ReadList(EndC: Char; Port: LV): LV; forward;
 
 function ReadWithChar(C: Char; Port: LV): LV;
 begin
+  if LispEOF(Port) then
+  begin
+    Result := LispEOFObject;
+    exit;
+  end;
+
   while C in LispWhitespace do
   begin
     C := LispReadChar(Port);
@@ -178,9 +189,11 @@ begin
 
     '#': Result := ReadHash(Port);
 
-    '(': Result := ReadList(Port);
-
-    ')': raise ELispError.Create('Unexpected ")"', nil);
+    '(': Result := ReadList(')', Port);
+    
+    '[': Result := ReadList(']', Port);
+    
+    ']', ')': raise ELispError.Create('unexpected list end', nil);
 
     '''': Result := ReadWithWrapper('quote', Port);
 
@@ -202,7 +215,7 @@ begin
   end;
 end;
 
-function ReadList(Port: LV): LV;
+function ReadList(EndC: Char; Port: LV): LV;
 var
   Cur, Next: TLispPair;
   C: Char;
@@ -219,7 +232,7 @@ begin
       end;
       C := LispReadChar(Port);
     until not (C in LispWhitespace);
-    if C = ')' then
+    if C = EndC then
     begin
       exit;
     end
