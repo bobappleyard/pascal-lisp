@@ -1,6 +1,6 @@
 { General Stuff }
 
-function EqP(Args: LV): LV;
+function EqP(Args: Pointer): LV;
 var 
   A, B: LV;
 begin
@@ -8,7 +8,7 @@ begin
   Result := LispBoolean(A = B);
 end;
 
-function EqvP(Args: LV): LV;
+function EqvP(Args: Pointer): LV;
 var 
   A, B: LV;
 begin
@@ -16,13 +16,13 @@ begin
   Result := LispBoolean(A.Equals(B));
 end;
 
-function Gensym(Args: LV): LV;
+function Gensym(Args: Pointer): LV;
 begin
   LispParseArgs(Args, []);
   Result := LispGensym();
 end;
 
-function BoehmP(Args: LV): LV;
+function BoehmP(Args: Pointer): LV;
 begin
   LispParseArgs(Args, []);
   Result := LispBoolean(GCInstalled);
@@ -30,7 +30,7 @@ end;
 
 { Control }
 
-function Values(Args: LV): LV;
+function Values(Args: Pointer): LV;
 var
   First, Rest: LV;
 begin
@@ -43,19 +43,19 @@ type
   private
     Lisp: TLispInterpreter;
   public
-    function Expand(Args: LV): LV;
-    function Eval(Args: LV): LV;
-    function Apply(Args: LV): LV;
-    function Load(Args: LV): LV;
-    function CallWithValues(Args: LV): LV;
-    function AddGlobal(Args: LV): LV;
-    function AddSyntax(Args: LV): LV;
-    function CallWithException(Args: LV): LV;
+    function Expand(Args: Pointer): LV;
+    function Eval(Args: Pointer): LV;
+    function Apply(Args: Pointer): LV;
+    function Load(Args: Pointer): LV;
+    function CallWithValues(Args: Pointer): LV;
+    function AddGlobal(Args: Pointer): LV;
+    function AddSyntax(Args: Pointer): LV;
+    function CallWithException(Args: Pointer): LV;
 
     constructor Create(Interpreter: TLispInterpreter);
   end;
 
-function TControlPrimitives.Expand(Args: LV): LV;
+function TControlPrimitives.Expand(Args: Pointer): LV;
 var
   Expr: LV;
 begin
@@ -63,7 +63,7 @@ begin
   Result := Lisp.Expand(Expr, LispEmpty);
 end;
 
-function TControlPrimitives.Eval(Args: LV): LV;
+function TControlPrimitives.Eval(Args: Pointer): LV;
 var
   Code, Env: LV;
 begin
@@ -71,7 +71,7 @@ begin
   Result := Lisp.Eval(Code, Env);
 end;
 
-function TControlPrimitives.Apply(Args: LV): LV;
+function TControlPrimitives.Apply(Args: Pointer): LV;
 var
   Proc, ArgLst: LV;
   First, This, Next: TLispPair;
@@ -102,7 +102,7 @@ begin
   end;
 end;
 
-function TControlPrimitives.Load(Args: LV): LV;
+function TControlPrimitives.Load(Args: Pointer): LV;
 var
   Path: LV;
 begin
@@ -111,7 +111,7 @@ begin
   Result := LispVoid;
 end;
 
-function TControlPrimitives.CallWithValues(Args: LV): LV;
+function TControlPrimitives.CallWithValues(Args: Pointer): LV;
 var
   Producer, Consumer, Produced: LV;
   Vals: TLispMultipleValues;
@@ -129,7 +129,7 @@ begin
   end;
 end;
 
-function TControlPrimitives.AddGlobal(Args: LV): LV;
+function TControlPrimitives.AddGlobal(Args: Pointer): LV;
 var
   Name, Value: LV;
 begin
@@ -138,7 +138,7 @@ begin
   Result := LispVoid;
 end;  
 
-function TControlPrimitives.AddSyntax(Args: LV): LV;
+function TControlPrimitives.AddSyntax(Args: Pointer): LV;
 var
   Name, Value: LV;
 begin
@@ -147,7 +147,7 @@ begin
   Result := LispVoid;
 end;  
   
-function TControlPrimitives.CallWithException(Args: LV): LV;
+function TControlPrimitives.CallWithException(Args: Pointer): LV;
 var
   Handler, Call: LV;
 begin
@@ -171,7 +171,7 @@ begin
   Lisp := Interpreter;
 end;
 
-function RaiseError(Args: LV): LV;
+function RaiseError(Args: Pointer): LV;
 var
   Msg, Obj: LV;
 begin
@@ -181,7 +181,7 @@ end;
 
 { Fixnums }
 
-function FixnumAdd(Args: LV): LV;
+function FixnumAdd(Args: Pointer): LV;
 var
   A, B: LV;
 begin
@@ -189,7 +189,7 @@ begin
   Result := LispNumber(LispToInteger(A) + LispToInteger(B));
 end;
 
-function FixnumSubtract(Args: LV): LV;
+function FixnumSubtract(Args: Pointer): LV;
 var
   A, B: TLispFixnum;
 begin
@@ -197,7 +197,7 @@ begin
   Result := LispNumber(LispToInteger(A) - LispToInteger(B));
 end;
 
-function FixnumMultiply(Args: LV): LV;
+function FixnumMultiply(Args: Pointer): LV;
 var
   A, B: TLispFixnum;
 begin
@@ -205,7 +205,7 @@ begin
   Result := LispNumber(LispToInteger(A) * LispToInteger(B));
 end;
 
-function FixnumQuotient(Args: LV): LV;
+function FixnumQuotient(Args: Pointer): LV;
 var
   A, B: TLispFixnum;
 begin
@@ -213,7 +213,7 @@ begin
   Result := LispNumber(LispToInteger(A) div LispToInteger(B));
 end;
 
-function FixnumModulo(Args: LV): LV;
+function FixnumModulo(Args: Pointer): LV;
 var
   A, B: TLispFixnum;
 begin
@@ -221,7 +221,7 @@ begin
   Result := LispNumber(LispToInteger(A) mod LispToInteger(B));
 end;
 
-function FixnumToReal(Args: LV): LV;
+function FixnumToReal(Args: Pointer): LV;
 var
   X: TLispFixnum;
 begin
@@ -236,7 +236,7 @@ begin
   LispTypeCheck(X, TLispReal, 'Not a Real');
 end;
 
-function RealAdd(Args: LV): LV;
+function RealAdd(Args: Pointer): LV;
 var
   A, B: TLispReal;
 begin
@@ -247,7 +247,7 @@ begin
   Result := TLispReal.Create(A.Value + B.Value);
 end;
 
-function RealSubtract(Args: LV): LV;
+function RealSubtract(Args: Pointer): LV;
 var
   A, B: TLispReal;
 begin
@@ -258,7 +258,7 @@ begin
   Result := TLispReal.Create(A.Value - B.Value);
 end;
 
-function RealMultiply(Args: LV): LV;
+function RealMultiply(Args: Pointer): LV;
 var
   A, B: TLispReal;
 begin
@@ -269,7 +269,7 @@ begin
   Result := TLispReal.Create(A.Value * B.Value);
 end;
 
-function RealDivide(Args: LV): LV;
+function RealDivide(Args: Pointer): LV;
 var
   A, B: TLispReal;
 begin
@@ -282,7 +282,7 @@ end;
 
 { Pairs }
 
-function Cons(Args: LV): LV;
+function Cons(Args: Pointer): LV;
 var
   A, D: TLispReal;
 begin
@@ -290,7 +290,7 @@ begin
   Result := TLispPair.Create(A, D);
 end;
 
-function Car(Args: LV): LV;
+function Car(Args: Pointer): LV;
 var
   P: LV;
 begin
@@ -298,7 +298,7 @@ begin
   Result := LispCar(P);
 end;
 
-function Cdr(Args: LV): LV;
+function Cdr(Args: Pointer): LV;
 var
   P: LV;
 begin
@@ -306,7 +306,7 @@ begin
   Result := LispCdr(P);
 end;
 
-function SetCar(Args: LV): LV;
+function SetCar(Args: Pointer): LV;
 var
   P, X: LV;
 begin
@@ -316,7 +316,7 @@ begin
   Result := LispVoid;
 end;
 
-function SetCdr(Args: LV): LV;
+function SetCdr(Args: Pointer): LV;
 var
   P, X: LV;
 begin

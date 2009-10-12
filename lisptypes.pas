@@ -23,6 +23,7 @@ type
 {$include lispdata.pas}
 
 { Multiple Values }
+
 type
   TLispMultipleValues = class(LV)
   private
@@ -57,11 +58,11 @@ type
   private
     FType: TLispType;
   public
-    function Check(Args: LV): LV;
+    function Check(Args: Pointer): LV;
     constructor Create(T: TLispType);
   end;
   
-function TLispTypePredicate.Check(Args: LV): LV;
+function TLispTypePredicate.Check(Args: Pointer): LV;
 var
   X: LV;
 begin

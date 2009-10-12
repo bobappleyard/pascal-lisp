@@ -1,5 +1,41 @@
 {$ifdef Interface}
 type
+  TLispOpCode =  (loPush,
+                  loBranch,
+                  loValue,
+                  loBound,
+                  loFree,
+                  loGlobal,
+                  loClose,
+                  loPrelude,
+                  loReturn,
+                  loBox,
+                  loUnbox,
+                  loAssign,
+                  loShuffle,
+                  loCall,
+                  loFrame,
+                  loHalt);
+  
+  TLispInstruction = record
+    Op: TLispOpCode;
+    Param: LV;
+  end;
+  
+  TLispCodeBlock = class
+  private
+    FInstructions: array of TLispInstruction;
+    function GetInstruction(index: Integer): TLispInstruction;
+    function GetCount: Integer;
+  public
+    property Instructions[index: Integer]: TLispInstruction read GetInstruction;
+    property Count: Integer read GetCount;
+    
+    procedure AddInstruction(Op: TLispOpCode; Param: LV);
+    constructor Create;
+  end;
+
+type
   TLispInterpreter = class
   private
     FEnv, FSEnv, QuoteSym, IfSym, LambdaSym, SetSym, FPrompt: LV;
@@ -42,6 +78,7 @@ type
   
 var
   LispPreludePath: string;
+  LispStackSize: Integer;
 
 type
   TLispProcedure = class(LV)
@@ -55,8 +92,8 @@ type
 { Primitives }
 
 type
-  TLispPrimitiveFunc = function(Args: LV): LV;
-  TLispPrimitiveMethod = function(Args: LV): LV of object;
+  TLispPrimitiveFunc = function(Args: Pointer): LV;
+  TLispPrimitiveMethod = function(Args: Pointer): LV of object;
 
   TLispPrimitive = class(TLispProcedure)
   private
@@ -98,16 +135,16 @@ type
     constructor Create(AName: string; AArgs, ACode, AEnv: LV);
   end;
   
-procedure LispParseArgs(Src: LV; Args: array of PLV; Variadic: Boolean = False);
+procedure LispParseArgs(Src: Pointer; Args: array of PLV; Variadic: Boolean = False);
 
 {$else}
 
-procedure LispParseArgs(Src: LV; Args: array of PLV; Variadic: Boolean = False);
+procedure LispParseArgs(Src: Pointer; Args: array of PLV; Variadic: Boolean = False);
 var
   I, C: Integer;
   Cur: LV;
 begin
-  Cur := Src;
+  Cur := LV(Src);
 
   if Variadic then
   begin
@@ -136,6 +173,33 @@ begin
   begin
     raise ELispError.Create('Too many arguments', nil);
   end;
+end;
+
+{ TLispCodeBlock }
+
+function TLispCodeBlock.GetInstruction(index: Integer): TLispInstruction;
+begin
+  Result := FInstructions[index];
+end;
+
+function TLispCodeBlock.GetCount: Integer;
+begin
+  Result := Length(FInstructions);
+end;
+
+procedure TLispCodeBlock.AddInstruction(Op: TLispOpCode; Param: LV);
+var
+  L: Integer;
+begin
+  L := Count;
+  SetLength(FInstructions, L + 1);
+  FInstructions[L].Op := Op;
+  FInstructions[L].Param := Param;
+end;
+
+constructor TLispCodeBlock.Create;
+begin
+  SetLength(FInstructions, 0);
 end;
 
 { TLispInterpreter }
@@ -612,11 +676,6 @@ begin
   FPrompt := LispString('> ');
 end;
 
-procedure InitInterpreter;
-begin
-  LispPreludePath := './prelude.scm';
-end;
-
 { TLispProcedure }
 
 function TLispProcedure.WithName(AName: string): LV;
@@ -722,5 +781,11 @@ begin
   FEnv := AEnv;
 end;
 
+
+procedure InitInterpreter;
+begin
+  LispPreludePath := './prelude.scm';
+  LispStackSize := 1024;
+end;
 
 {$endif}
