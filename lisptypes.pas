@@ -20,11 +20,10 @@ type
     constructor Create(Msg: string; What: LV);
   end;
 
-  {$include lispdata.pas}
-  {$include lispcode.pas}
+{$include lispdata.pas}
 
 { Multiple Values }
-
+type
   TLispMultipleValues = class(LV)
   private
     FFirst, FRest: LV;
@@ -40,12 +39,10 @@ type
 
 procedure LispTypeCheck(X: LV; Expected: TLispType; Msg: string);
 function LispTypePredicate(T: TLispType): LV;
-procedure LispParseArgs(Src: LV; Args: array of PLV; Variadic: Boolean = False);
 
 {$else}
 
-  {$include lispdata.pas}
-  {$include lispcode.pas}
+{$include lispdata.pas}
 
 procedure LispTypeCheck(X: LV; Expected: TLispType; Msg: string);
 begin
@@ -83,42 +80,6 @@ var
 begin
   Tester := TLispTypePredicate.Create(T);
   Result := LispPrimitive(Tester.Check);
-end;
-
-procedure LispParseArgs(Src: LV; Args: array of PLV; Variadic: Boolean = False);
-var
-  I, C: Integer;
-  Cur: LV;
-begin
-  Cur := Src;
-
-  if Variadic then
-  begin
-    C := Length(Args) - 1;
-  end
-  else
-  begin
-    C := Length(Args);
-  end;
-
-  for I := 0 to C - 1  do
-  begin
-    if Cur = LispEmpty then
-    begin
-      raise ELispError.Create('Not enough arguments', nil);
-    end;
-    Args[I]^ := LispCar(Cur);
-    Cur := LispCdr(Cur);
-  end;
-
-  if Variadic then
-  begin
-    Args[C]^ := Cur;
-  end
-  else if Cur <> LispEmpty then
-  begin
-    raise ELispError.Create('Too many arguments', nil);
-  end;
 end;
 
 { LV }

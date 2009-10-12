@@ -46,6 +46,7 @@ type
     function Expand(Args: LV): LV;
     function Eval(Args: LV): LV;
     function Apply(Args: LV): LV;
+    function Load(Args: LV): LV;
     function CallWithValues(Args: LV): LV;
     function AddGlobal(Args: LV): LV;
     function AddSyntax(Args: LV): LV;
@@ -99,6 +100,15 @@ begin
     This.D := LispCar(ArgLst);
     Result := Lisp.Apply(Proc, First);
   end;
+end;
+
+function TControlPrimitives.Load(Args: LV): LV;
+var
+  Path: LV;
+begin
+  LispParseArgs(Args, [@Path]);
+  Lisp.Load(LispToString(Path));
+  Result := LispVoid;
 end;
 
 function TControlPrimitives.CallWithValues(Args: LV): LV;
@@ -334,6 +344,7 @@ begin
   I.RegisterGlobal('expand', LispPrimitive(Control.Expand));
   I.RegisterGlobal('eval', LispPrimitive(Control.Eval));
   I.RegisterGlobal('apply', LispPrimitive(Control.Apply));
+  I.RegisterGlobal('load', LispPrimitive(Control.Load));
   I.RegisterGlobal('values', LispPrimitive(@Values));
   I.RegisterGlobal('call-with-values', LispPrimitive(Control.CallWithValues));
   I.RegisterGlobal('call-with-exception', LispPrimitive(Control.CallWithException));
