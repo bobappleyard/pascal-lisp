@@ -12,7 +12,7 @@ const
 function GCMalloc(Size: PtrInt): Pointer; cdecl; external LibName name 'GC_malloc';
 
 type
-  TByteArray = array [0 .. MaxInt] of Byte;
+  TByteArray = array [0 .. MaxInt - 1] of Byte;
   PPtrInt = ^PtrInt;
   PByteArray = ^TByteArray;
 
