@@ -5,7 +5,7 @@ var
   Interpreter: TLispInterpreter;
   Input, Output: LV;
 begin
-  Interpreter := TLispInterpreter.Create(False);
+  Interpreter := TLispInterpreter.Create(True);
   Input := LispInputStream(TIOStream.Create(iosInput));
   Output := LispOutputStream(TIOStream.Create(iosOutput));
   

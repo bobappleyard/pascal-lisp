@@ -1,41 +1,5 @@
 {$ifdef Interface}
 type
-  TLispOpCode =  (loPush,
-                  loBranch,
-                  loValue,
-                  loBound,
-                  loFree,
-                  loGlobal,
-                  loClose,
-                  loPrelude,
-                  loReturn,
-                  loBox,
-                  loUnbox,
-                  loAssign,
-                  loShuffle,
-                  loCall,
-                  loFrame,
-                  loHalt);
-  
-  TLispInstruction = record
-    Op: TLispOpCode;
-    Param: LV;
-  end;
-  
-  TLispCodeBlock = class
-  private
-    FInstructions: array of TLispInstruction;
-    function GetInstruction(index: Integer): TLispInstruction;
-    function GetCount: Integer;
-  public
-    property Instructions[index: Integer]: TLispInstruction read GetInstruction;
-    property Count: Integer read GetCount;
-    
-    procedure AddInstruction(Op: TLispOpCode; Param: LV);
-    constructor Create;
-  end;
-
-type
   TLispInterpreter = class
   private
     FEnv, FSEnv, QuoteSym, IfSym, LambdaSym, SetSym, FPrompt: LV;
@@ -78,7 +42,6 @@ type
   
 var
   LispPreludePath: string;
-  LispStackSize: Integer;
 
 type
   TLispProcedure = class(LV)
@@ -173,33 +136,6 @@ begin
   begin
     raise ELispError.Create('Too many arguments', nil);
   end;
-end;
-
-{ TLispCodeBlock }
-
-function TLispCodeBlock.GetInstruction(index: Integer): TLispInstruction;
-begin
-  Result := FInstructions[index];
-end;
-
-function TLispCodeBlock.GetCount: Integer;
-begin
-  Result := Length(FInstructions);
-end;
-
-procedure TLispCodeBlock.AddInstruction(Op: TLispOpCode; Param: LV);
-var
-  L: Integer;
-begin
-  L := Count;
-  SetLength(FInstructions, L + 1);
-  FInstructions[L].Op := Op;
-  FInstructions[L].Param := Param;
-end;
-
-constructor TLispCodeBlock.Create;
-begin
-  SetLength(FInstructions, 0);
 end;
 
 { TLispInterpreter }
