@@ -191,6 +191,7 @@ begin
 
   if Tail then
   begin
+    Result := nil;
     Proc := P;
     Args := A;
   end
@@ -721,7 +722,6 @@ end;
 procedure InitInterpreter;
 begin
   LispPreludePath := './prelude.scm';
-  LispStackSize := 1024;
 end;
 
 {$endif}
