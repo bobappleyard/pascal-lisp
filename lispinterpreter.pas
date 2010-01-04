@@ -575,6 +575,7 @@ end;
 procedure TLispInterpreter.REPL(Input, Output: LV);
 var
   Result: LV;
+  C: Char;
 begin
   while not LispEOF(Input) do
   begin
@@ -592,6 +593,9 @@ begin
         LispWriteString('error: ', Output);
         LispWriteString(E.Message, Output);
         LispWriteChar(#10, Output);
+        repeat
+          C := LispReadChar(Input);
+        until LispEOF(Input) or (C = #10);
       end;
     end;
   end;
